@@ -333,6 +333,7 @@ try {
           to: enrollment.email,
           subject: personalizedSubject,
           html: trackedHtml,
+          from: "uptoskills.salesforge@gmail.com",
         });
 
         if (sendResult.skipped) {
