@@ -247,6 +247,12 @@ const Campaigns = () => {
     }
   };
   const toggleLeads = async (campaignId) => {
+  const campaign = items.find((item) => item.id === campaignId);
+  if (campaign?.conditions?.status === "scheduled" && !campaign.active) {
+    setExpandedId((current) => (current === campaignId ? null : campaignId));
+    return;
+  }
+
   if (expandedId === campaignId) {
     setExpandedId(null);
     return;
@@ -319,9 +325,34 @@ const Campaigns = () => {
                       {c.conditions?.steps?.length
                         ? `${c.conditions.steps.length} step${c.conditions.steps.length > 1 ? "s" : ""}`
                         : c.conditions?.subject || "—"}
-                      {" · "}Expected Leads: {c.expectedLeads ?? 0}
+                      {c.conditions?.status === "scheduled" && !c.active
+                        ? ` · Expected Leads: ${c.expectedLeads ?? 0}`
+                        : ""}
                     </div>
                   </div>
+
+                  {c.conditions?.status === "scheduled" && !c.active && (
+                    <div className="mt-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3">
+                      <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
+                        Expected leads
+                      </div>
+                      {c.expectedLeadsPreview?.length ? (
+                        <div className="space-y-2">
+                          {c.expectedLeadsPreview.map((lead) => (
+                            <div key={lead.id} className="grid grid-cols-1 sm:grid-cols-4 gap-1 text-xs">
+                              <span className="font-medium">{lead.name || "—"}</span>
+                              <span>{lead.email || "—"}</span>
+                              <span>{lead.companyName || "—"}</span>
+                              <UptoBadge>{lead.status || "—"}</UptoBadge>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-slate-500">No matching leads currently.</div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-2">
                     <UptoBadge>
                       {c.conditions?.status === "paused"
@@ -366,7 +397,9 @@ const Campaigns = () => {
                     )}
 
                     <UptoButton variant="ghost" onClick={() => toggleLeads(c.id)}>
-                      {expandedId === c.id ? "Hide Leads" : "View Leads"}
+                      {c.conditions?.status === "scheduled" && !c.active
+                        ? (expandedId === c.id ? "Hide Expected Leads" : "View Expected Leads")
+                        : (expandedId === c.id ? "Hide Leads" : "View Leads")}
                     </UptoButton>
 
                     <UptoButton
@@ -396,7 +429,11 @@ const Campaigns = () => {
                             <span>{l.name || "—"} · {l.email}</span>
                             <span className="text-slate-500">{l.companyName || "—"}</span>
                             <UptoBadge>{l.enrollmentStatus}</UptoBadge>
-                            <span className="text-slate-400">Step {l.currentStep + 1}/{l.totalSteps}</span>
+                            <span className="text-slate-400">
+                              {l.enrollmentStatus === "COMPLETED"
+                                ? `Step ${l.totalSteps}/${l.totalSteps}`
+                                : `Step ${l.currentStep + 1}/${l.totalSteps}`}
+                            </span>
                           </div>
                         ))}
                       </div>
