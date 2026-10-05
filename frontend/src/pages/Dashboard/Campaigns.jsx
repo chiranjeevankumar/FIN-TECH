@@ -331,28 +331,6 @@ const Campaigns = () => {
                     </div>
                   </div>
 
-                  {c.conditions?.status === "scheduled" && !c.active && (
-                    <div className="mt-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3">
-                      <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
-                        Expected leads
-                      </div>
-                      {c.expectedLeadsPreview?.length ? (
-                        <div className="space-y-2">
-                          {c.expectedLeadsPreview.map((lead) => (
-                            <div key={lead.id} className="grid grid-cols-1 sm:grid-cols-4 gap-1 text-xs">
-                              <span className="font-medium">{lead.name || "—"}</span>
-                              <span>{lead.email || "—"}</span>
-                              <span>{lead.companyName || "—"}</span>
-                              <UptoBadge>{lead.status || "—"}</UptoBadge>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-xs text-slate-500">No matching leads currently.</div>
-                      )}
-                    </div>
-                  )}
-
                   <div className="flex items-center gap-2">
                     <UptoBadge>
                       {c.conditions?.status === "paused"
@@ -396,11 +374,11 @@ const Campaigns = () => {
                       </>
                     )}
 
-                    <UptoButton variant="ghost" onClick={() => toggleLeads(c.id)}>
-                      {c.conditions?.status === "scheduled" && !c.active
-                        ? (expandedId === c.id ? "Hide Expected Leads" : "View Expected Leads")
-                        : (expandedId === c.id ? "Hide Leads" : "View Leads")}
-                    </UptoButton>
+                    {!(c.conditions?.status === "scheduled" && !c.active) && (
+                      <UptoButton variant="ghost" onClick={() => toggleLeads(c.id)}>
+                        {expandedId === c.id ? "Hide Leads" : "View Leads"}
+                      </UptoButton>
+                    )}
 
                     <UptoButton
                       variant="ghost"
@@ -417,6 +395,28 @@ const Campaigns = () => {
                     </UptoButton>
                   </div>
                 </div>
+
+                {c.conditions?.status === "scheduled" && !c.active && (
+                  <div className="mt-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3">
+                    <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
+                      Expected leads
+                    </div>
+                    {c.expectedLeadsPreview?.length ? (
+                      <div className="space-y-2">
+                        {c.expectedLeadsPreview.map((lead) => (
+                          <div key={lead.id} className="grid grid-cols-1 sm:grid-cols-4 gap-1 text-xs">
+                            <span className="font-medium">{lead.name || "—"}</span>
+                            <span>{lead.email || "—"}</span>
+                            <span>{lead.companyName || "—"}</span>
+                            <UptoBadge>{lead.status || "—"}</UptoBadge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-500">No matching leads currently.</div>
+                    )}
+                  </div>
+                )}
 
                 {expandedId === c.id && (
                   <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
