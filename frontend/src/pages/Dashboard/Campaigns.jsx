@@ -92,6 +92,8 @@ const Campaigns = () => {
       setDraft({ ...draft, audience: { type: "tag", tagId: firstTagId } });
     } else if (type === "status") {
       setDraft({ ...draft, audience: { type: "status", status: "new" } });
+    } else if (type === "score") {
+      setDraft({ ...draft, audience: { type: "score", min: 80, max: "" } });
     } else if (type === "segment") {
       const firstSegId = segments[0]?.id || "";
       setDraft({ ...draft, audience: { type: "segment", savedSearchId: firstSegId } });
@@ -118,6 +120,11 @@ const Campaigns = () => {
       const matchedStatus = LEAD_STATUS_OPTIONS.find((s) => s.value === audienceObj.status);
       return `Status: ${matchedStatus ? matchedStatus.label : audienceObj.status}`;
     }
+    if (audienceObj?.type === "score") {
+      if (audienceObj.min !== "" && audienceObj.max !== "") return `Score: ${audienceObj.min}–${audienceObj.max}`;
+      if (audienceObj.min !== "") return `Score: ≥ ${audienceObj.min}`;
+      return `Score: ≤ ${audienceObj.max}`;
+    }
     if (audienceObj?.type === "segment") {
       const seg = segments.find((s) => s.id === Number(audienceObj.savedSearchId));
       return seg ? `Segment: ${seg.name}` : `Segment #${audienceObj.savedSearchId}`;
@@ -136,6 +143,14 @@ const Campaigns = () => {
       }
       if (aud.type === "status" && !aud.status) {
         toast.error("Please select a status");
+        return;
+      }
+      if (aud.type === "score" && aud.min === "" && aud.max === "") {
+        toast.error("Please provide a score range");
+        return;
+      }
+      if (aud.type === "score" && aud.min !== "" && aud.max !== "" && Number(aud.min) > Number(aud.max)) {
+        toast.error("Minimum score cannot be greater than maximum score");
         return;
       }
       if (aud.type === "segment" && !aud.savedSearchId) {
@@ -472,8 +487,9 @@ const Campaigns = () => {
                   onChange={(e) => handleAudienceTypeChange(e.target.value)}
                 >
                   <option value="all">All Leads</option>
-                  <option value="tag">By Tag</option>
                   <option value="status">By Status</option>
+                  <option value="score">By Score</option>
+                  <option value="tag">By Tag</option>
                   <option value="segment">By Saved Segment</option>
                 </select>
 
@@ -500,6 +516,37 @@ const Campaigns = () => {
                         ))}
                       </select>
                     )}
+                  </div>
+                )}
+
+                {(typeof draft.audience === "object" && draft.audience?.type === "score") && (
+                  <div className="mt-2 space-y-2">
+                    <label className="text-xs text-slate-500 mb-1 block">Score range</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <UptoInput
+                        label="Minimum"
+                        type="number"
+                        min="0"
+                        value={draft.audience?.min ?? ""}
+                        onChange={(e) => setDraft({
+                          ...draft,
+                          audience: { ...draft.audience, min: e.target.value === "" ? "" : Number(e.target.value) },
+                        })}
+                      />
+                      <UptoInput
+                        label="Maximum"
+                        type="number"
+                        min="0"
+                        value={draft.audience?.max ?? ""}
+                        onChange={(e) => setDraft({
+                          ...draft,
+                          audience: { ...draft.audience, max: e.target.value === "" ? "" : Number(e.target.value) },
+                        })}
+                      />
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Examples: minimum 80 = Score ≥ 80; maximum 50 = Score ≤ 50; both = custom range.
+                    </div>
                   </div>
                 )}
 
