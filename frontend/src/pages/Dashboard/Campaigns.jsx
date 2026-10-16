@@ -5,7 +5,8 @@ import {
   UptoPage, UptoHero, UptoButton, UptoInput, UptoBadge,
   UptoSpinner, UptoError, UptoEmptyState, UptoCard,
 } from "@/components/UI/UptoHooks";
-import { Megaphone, Plus } from "lucide-react";
+import { Megaphone, Plus, Sparkles } from "lucide-react";
+import CampaignStudio from "./CampaignStudio";
 import { toast } from "sonner";
 
 const LEAD_STATUS_OPTIONS = [
@@ -23,6 +24,7 @@ const Campaigns = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showStudio, setShowStudio] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [tags, setTags] = useState([]);
   const [segments, setSegments] = useState([]);
@@ -197,8 +199,7 @@ const Campaigns = () => {
       const op = audienceObj.operator || (audienceObj.min !== "" && audienceObj.max !== "" ? "between" : "gte");
       if (op === "between") {
         return `Score: ${audienceObj.min}–${audienceObj.max}`;
-      }
-      const symbols = { gt: ">", gte: "≥", lt: "<", lte: "≤" };
+      }      const symbols = { gt: ">", gte: "≥", lt: "<", lte: "≤" };
       return `Score: ${symbols[op] || "≥"} ${audienceObj.value ?? audienceObj.min ?? audienceObj.max}`;
     }
 
@@ -397,8 +398,7 @@ const Campaigns = () => {
       try {
         audience = JSON.parse(rawAudience);
       } catch (_) {
-        audience = rawAudience;
-      }
+        audience = rawAudience;      }
     }
 
     setDraft({
@@ -432,9 +432,14 @@ const Campaigns = () => {
         title="Campaigns"
         subtitle="Email and marketing automation"
         actions={
-          <UptoButton onClick={openNewCampaign}>
-            <Plus className="mr-1 h-4 w-4 inline" /> New campaign
-          </UptoButton>
+          <div className="flex flex-wrap gap-2">
+            <UptoButton onClick={() => setShowStudio(true)}>
+              <Sparkles className="mr-1 h-4 w-4 inline" /> AI Campaign Studio
+            </UptoButton>
+            <UptoButton variant="secondary" onClick={openNewCampaign}>
+              <Plus className="mr-1 h-4 w-4 inline" /> New campaign
+            </UptoButton>
+          </div>
         }
       />
 
@@ -597,8 +602,7 @@ const Campaigns = () => {
                           {c.expectedLeadsPreview.map((lead) => (
                             <div
                               key={lead.id}
-                              className="grid grid-cols-1 sm:grid-cols-4 gap-1 text-xs"
-                            >
+                              className="grid grid-cols-1 sm:grid-cols-4 gap-1 text-xs"                            >
                               <span className="font-medium">
                                 {lead.name || "—"}
                               </span>
@@ -658,6 +662,10 @@ const Campaigns = () => {
           </div>
         )}
       </UptoCard>
+
+      {showStudio && (
+        <CampaignStudio onClose={() => setShowStudio(false)} onSaved={() => load()} />
+      )}
 
       {showCreate && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -797,7 +805,6 @@ const Campaigns = () => {
                         />
                       </div>
                     </div>
-
                     {draft.audience?.operator === "between" && (
                       <UptoInput
                         label="Maximum"
@@ -997,8 +1004,7 @@ const Campaigns = () => {
                             ...draft,
                             audience: {
                               type: "segment",
-                              savedSearchId: Number(e.target.value),
-                            },
+                              savedSearchId: Number(e.target.value),                            },
                           })
                         }
                       >
@@ -1197,8 +1203,7 @@ const Campaigns = () => {
                                 },
                               });
                               setShowSegmentBuilder(false);
-                              setSegmentDraft({
-                                name: "",
+                              setSegmentDraft({                                name: "",
                                 logic: "AND",
                                 conditions: [],
                               });
