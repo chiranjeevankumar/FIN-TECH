@@ -233,7 +233,7 @@ const RootRedirect = () => {
     if (user?.role === "ADMIN") return <Navigate to="/admin/dashboard" replace />;
     return <Navigate to="/dashboard" replace />;
   }
-  return <ErrorBoundary><Landing /></ErrorBoundary>;
+  return <ErrorBoundary><PublicDemoDashboard /></ErrorBoundary>;
 };
 
 export default App;
