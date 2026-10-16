@@ -9,6 +9,10 @@ const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect") || "/dashboard";
+  const inviteQuery = redirect.startsWith("/invite/accept")
+    ? redirect.split("?")[1] || ""
+    : "";
+  const inviteToken = new URLSearchParams(inviteQuery).get("token");
   const { isAuthenticated, loading, refresh, user } = useAuth();
 
   const [email, setEmail] = useState("demo@salesforge.com");
@@ -68,6 +72,7 @@ const Login = () => {
     try {
       const res = await api.post("/auth/google", {
         credential: credentialResponse.credential,
+        ...(inviteToken ? { inviteToken } : {}),
       });
 
       tokenStore.set(res.data.data.token);
