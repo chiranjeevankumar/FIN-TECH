@@ -621,16 +621,22 @@ const leadMatchesAudience = async (lead, audience, orgId) => {
       break;
     }
     
-    case "score":
-      if (normalizedAudience.operator) {
-        primaryMatches = compareAudienceValue(lead.score, normalizedAudience.operator, normalizedAudience.value);
-      } else if (normalizedAudience.min !== undefined || normalizedAudience.max !== undefined) {
+    case "score": {
+      const operator = String(normalizedAudience.operator || "").toLowerCase();
+      if (["gt", "gte", "lt", "lte", "greater_than", "greater_or_equal", "less_than", "less_or_equal"].includes(operator)) {
+        primaryMatches = compareAudienceValue(lead.score, operator, normalizedAudience.value);
+      } else if (operator === "between" || normalizedAudience.min !== undefined || normalizedAudience.max !== undefined) {
         const min = normalizedAudience.min !== "" && normalizedAudience.min !== undefined ? Number(normalizedAudience.min) : null;
         const max = normalizedAudience.max !== "" && normalizedAudience.max !== undefined ? Number(normalizedAudience.max) : null;
-        primaryMatches = (min === null || (Number.isFinite(min) && Number(lead.score) >= min)) &&
-          (max === null || (Number.isFinite(max) && Number(lead.score) <= max));
+        primaryMatches =
+          (min === null || Number.isFinite(min)) &&
+          (max === null || Number.isFinite(max)) &&
+          !(min !== null && max !== null && min > max) &&
+          (min === null || Number(lead.score) >= min) &&
+          (max === null || Number(lead.score) <= max);
       }
       break;
+    }
     case "segment": {
       const savedSearchId = Number(normalizedAudience.savedSearchId);
       if (!Number.isInteger(savedSearchId) || savedSearchId <= 0) return false;
