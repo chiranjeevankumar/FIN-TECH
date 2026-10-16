@@ -557,11 +557,6 @@ const googleLogin = asyncHandler(async (req, res) => {
       update: { role: invite.role },
     });
 
-    await prisma.teamInvite.update({
-      where: { id: invite.id },
-      data: { acceptedAt: new Date() },
-    });
-
     await seedDefaultPreferences(user.id, invite.orgId);
   }
 
