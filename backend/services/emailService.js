@@ -180,6 +180,12 @@ const sendCampaignEmail = async ({ lead, campaign, enrollment }) => {
     const currentStep = Array.isArray(enrollment?.steps)
       ? enrollment.steps[enrollment.currentStep]
       : null;
+    const approvedAction = Array.isArray(campaign?.actions)
+      ? campaign.actions.find((action) => action?.type === "SEND_EMAIL") || campaign.actions[0]
+      : null;
+    const selectedDraft = approvedAction?.subject && approvedAction?.body
+      ? { subject: approvedAction.subject, body: approvedAction.body }
+      : null;
 
     const generated = await personalizeCampaignEmail({
       name: lead.name,
@@ -196,6 +202,7 @@ const sendCampaignEmail = async ({ lead, campaign, enrollment }) => {
       audienceLabel,
       audienceType,
       audienceContext,
+      selectedDraft,
 
       stepNumber: (enrollment.currentStep || 0) + 1,
     });
