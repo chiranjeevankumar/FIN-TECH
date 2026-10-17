@@ -438,6 +438,7 @@ export const ticketService = {
 
 export const campaignService = {
   list: (params) => unwrapList(api.get("/campaigns", { params })),
+  previewAudience: (audience) => unwrap(api.post("/campaigns/audience-preview", { audience })),
   get: (id) => unwrap(api.get(`/campaigns/${id}`)),
   create: (data) => unwrap(api.post("/campaigns", data)),
   update: (id, data) => unwrap(api.patch(`/campaigns/${id}`, data)),
