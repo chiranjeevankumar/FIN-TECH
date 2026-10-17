@@ -25,6 +25,7 @@ const Campaigns = () => {
   const [error, setError] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showStudio, setShowStudio] = useState(false);
+  const [showWaveOverview, setShowWaveOverview] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [tags, setTags] = useState([]);
   const [segments, setSegments] = useState([]);
@@ -439,12 +440,39 @@ const Campaigns = () => {
             <UptoButton variant="secondary" onClick={openNewCampaign}>
               <Plus className="mr-1 h-4 w-4 inline" /> New campaign
             </UptoButton>
+            <UptoButton variant="secondary" onClick={() => setShowWaveOverview((value) => !value)}>
+              <Megaphone className="mr-1 h-4 w-4 inline" /> Wave Campaign
+            </UptoButton>
           </div>
         }
       />
 
+      {showWaveOverview && (
+        <UptoCard>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div><h2 className="text-lg font-semibold">Wave Campaign Overview</h2><p className="text-sm text-slate-500">Track campaign progress and status.</p></div>
+            <UptoButton variant="secondary" onClick={() => setShowWaveOverview(false)}>Close overview</UptoButton>
+          </div>
+          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+            {[
+              { label: "Active", count: items.filter((c) => c.active && c.conditions?.status === "running").length },
+              { label: "Scheduled", count: items.filter((c) => c.conditions?.status === "scheduled" && !c.active).length },
+              { label: "Completed", count: items.filter((c) => c.conditions?.status === "completed").length },
+              { label: "Paused", count: items.filter((c) => c.conditions?.status === "paused").length },
+              { label: "Draft / Other", count: items.filter((c) => !["running", "scheduled", "completed", "paused"].includes(c.conditions?.status) || (!c.active && !c.conditions?.status)).length },
+            ].map((status) => <div key={status.label} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"><p className="text-xs text-slate-500">{status.label}</p><p className="text-2xl font-bold">{status.count}</p></div>)}
+          </div>
+          {loading ? <UptoSpinner /> : error ? <UptoError message={error} onRetry={load} /> : items.length === 0 ? <UptoEmptyState icon={Megaphone} title="No campaigns yet" body="Create a campaign to see it tracked here." /> : (
+            <div className="space-y-2">{items.map((campaign) => {
+              const status = campaign.conditions?.status === "running" || campaign.active ? "Active" : campaign.conditions?.status === "scheduled" ? "Scheduled" : campaign.conditions?.status === "completed" ? "Completed" : campaign.conditions?.status === "paused" ? "Paused" : campaign.conditions?.status === "error" ? "Error" : "Draft";
+              return <div key={campaign.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700"><div className="min-w-0"><p className="font-medium">{campaign.name}</p><p className="text-xs text-slate-500">{renderAudienceLabel(campaign.conditions?.audience)} · {campaign.conditions?.schedule ? new Date(campaign.conditions.schedule).toLocaleString() : "No schedule"}</p></div><UptoBadge>{status}</UptoBadge></div>;
+            })}</div>
+          )}
+        </UptoCard>
+      )}
+
       <UptoCard>
-        {loading && <UptoSpinner />}
+        {loading && <UptoSpinner />
 
         {error && <UptoError message={error} onRetry={load} />}
 
