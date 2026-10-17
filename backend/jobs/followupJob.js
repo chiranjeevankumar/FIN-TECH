@@ -87,6 +87,7 @@ const tasks = {
                   conditions: true,
                   name: true,
                   description: true,
+                  actions: true,
                 },
               },
             },
