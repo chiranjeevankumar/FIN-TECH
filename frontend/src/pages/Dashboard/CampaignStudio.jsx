@@ -33,17 +33,47 @@ export default function CampaignStudio({ onClose, onSaved }) {
   const audience = useMemo(() => type === "status" ? {type, status} : type === "score" ? {type, operator:"between", min:Number(min), max:Number(max)} : type === "tag" ? {type, tagId:Number(tagId)} : type === "segment" ? {type, savedSearchId:Number(segmentId)} : {type:"all"}, [type,status,min,max,tagId,segmentId]);
   const audienceLabel = type === "all" ? "All Leads" : type === "status" ? "Status: "+status : type === "score" ? "Lead score "+min+"–"+max : type === "tag" ? "Tag: "+(tags.find(t=>String(t.id)===String(tagId))?.name || "selected") : "Saved segment: "+(segments.find(s=>String(s.id)===String(segmentId))?.name || "selected");
   const scan = async () => {
+    if (type === "tag" && !tagId) {
+      toast.error("Select a tag first");
+      return;
+    }
+    if (type === "segment" && !segmentId) {
+      toast.error("Select a saved segment first");
+      return;
+    }
+    if (
+      type === "score" &&
+      (!Number.isFinite(Number(min)) ||
+        !Number.isFinite(Number(max)) ||
+        Number(min) < 0 ||
+        Number(max) > 100 ||
+        Number(min) > Number(max))
+    ) {
+      toast.error("Choose a valid score range from 0 to 100");
+      return;
+    }
+
     setBusy(true);
     try {
-      const res = await leadService.list({limit:1000});
-      const leads = res?.items || res?.leads || res?.data || res || [];
-      if (!Array.isArray(leads)) throw new Error("Unexpected lead response; unable to calculate a reliable count.");
-      if (type === "segment") { setCount(null); setSample([]); toast.info("Saved-segment counts are confirmed by the backend when campaigns are listed."); return; }
-      const matched = leads.filter(l => type==="status" ? l.status===status : type==="score" ? Number(l.score||0)>=Number(min)&&Number(l.score||0)<=Number(max) : type==="tag" ? (l.tags||[]).some(t=>String(t.tagId??t.id)===String(tagId) || String(t.tag?.id)===String(tagId)) : true);
-      setCount(matched.length); setSample(matched.slice(0,5)); toast.success("Preview refreshed");
-    } catch(e) { toast.error(e?.message || "Unable to preview audience"); }
-    finally { setBusy(false); }
+      setCount(null);
+      setSample([]);
+      const result = await campaignService.previewAudience(audience);
+      const preview = result?.data ?? result;
+      const total = Number(preview?.count);
+      const examples = preview?.sample;
+      if (!Number.isFinite(total) || total < 0 || !Array.isArray(examples)) {
+        throw new Error("The backend returned an invalid audience preview.");
+      }
+      setCount(total);
+      setSample(examples);
+      toast.success(`Audience preview updated: ${total} matching leads`);
+    } catch (e) {
+      toast.error(e?.message || "Unable to preview audience");
+    } finally {
+      setBusy(false);
+    }
   };
+
   const save = async () => {
     if (!name.trim()) return toast.error("Enter a campaign name");
     if (!schedule || new Date(schedule) <= new Date()) return toast.error("Choose a future schedule");
