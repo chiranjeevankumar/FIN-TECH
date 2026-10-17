@@ -68,19 +68,19 @@ const list = asyncHandler(async (req, res) => {
 
 
 const copyPreview = asyncHandler(async (req, res) => {
-  const { audience, campaignName, tone = "professional", goal = "replies", valueProp = "" } = req.body || {};
+  const { audience, campaignName, tone = "professional", goal = "replies", valueProp = "", prompt = "" } = req.body || {};
   if (!audience || typeof audience !== "object" || Array.isArray(audience)) throw new AppError("A valid audience object is required.", 400);
   if (!["professional", "conversational", "concise"].includes(tone)) throw new AppError("Choose a supported email tone.", 400);
   if (!["replies", "meetings", "awareness", "followup"].includes(goal)) throw new AppError("Choose a supported campaign goal.", 400);
   if (typeof valueProp !== "string" || valueProp.length > 500) throw new AppError("Value proposition must be 500 characters or fewer.", 400);
+  if (typeof prompt !== "string" || prompt.length > 1000) throw new AppError("Prompt must be 1000 characters or fewer.", 400);
   const matches = await getMatchingCampaignLeads(audience, req.orgId);
   const lead = matches[0] || {};
   const audienceType = audience.type || "all";
   const audienceLabel = audience.label || campaignName || "General Leads";
   const variantDirections = [
-    "Variant 1: lead with a relevant benefit and a simple, low-friction call to action.",
-    "Variant 2: lead with a concise, curiosity-building question without clickbait.",
-    "Variant 3: lead with a practical insight and a clear next step."
+    "Draft 1: lead with a relevant benefit and a simple, low-friction call to action.",
+    "Draft 2: lead with a different angle, such as a concise curiosity-building question and a clear next step. Avoid clickbait."
   ];
   const variants = [];
   for (let i = 0; i < variantDirections.length; i++) {
@@ -92,6 +92,7 @@ const copyPreview = asyncHandler(async (req, res) => {
         "Draft only. Do not send this email.", "Requested tone: " + tone + ".",
         "Campaign goal: " + goal + ".",
         valueProp.trim() ? "Value proposition supplied by campaign owner: " + valueProp.trim() : "No specific value proposition supplied; do not invent one.",
+        prompt.trim() ? "Campaign owner prompt or keywords: " + prompt.trim() : "No additional prompt supplied.",
         variantDirections[i]
       ].join("\n"),
       audienceLabel, audienceType, audienceContext: audience, stepNumber: 1
