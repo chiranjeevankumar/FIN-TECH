@@ -472,7 +472,7 @@ const Campaigns = () => {
       )}
 
       <UptoCard>
-        {loading && <UptoSpinner />
+        {loading && <UptoSpinner />}
 
         {error && <UptoError message={error} onRetry={load} />}
 
