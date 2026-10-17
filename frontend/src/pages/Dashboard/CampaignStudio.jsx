@@ -107,12 +107,22 @@ export default function CampaignStudio({ onClose, onSaved }) {
     if (type === "score" && (min === "" || max === "" || !Number.isFinite(Number(min)) || !Number.isFinite(Number(max)) || Number(min) < 0 || Number(max) > 100 || Number(min) > Number(max))) return toast.error("Choose a valid score range from 0 to 100");
     setBusy(true);
     try {
+      const selectedDraft = variants.find(v => v.id === selectedVariant);
+      if (!selectedDraft?.subject?.trim() || !selectedDraft?.body?.trim()) {
+        return toast.error("Generate the email drafts and select a valid variant before saving.");
+      }
+
       await campaignService.create({
         name:name.trim(),
-        description:"Campaign goal: "+goal+". Copy tone: "+tone+". Value proposition: "+valueProp.trim()+(variants.length ? ". Reviewed draft variant: "+(variants.find(v=>v.id===selectedVariant)?.subject || "") : ""),
+        description:"Campaign goal: "+goal+". Copy tone: "+tone+". Value proposition: "+valueProp.trim()+". Selected draft variant: "+selectedDraft.subject,
         audience,
         schedule:new Date(schedule).toISOString(),
         type:"email",
+        content:[{
+          type:"SEND_EMAIL",
+          subject:selectedDraft.subject,
+          body:selectedDraft.body
+        }],
         steps:[{day:0,time:new Date(schedule).toTimeString().slice(0,5)}]
       });
       toast.success("Campaign saved as scheduled. Sending still depends on the existing scheduler.");
