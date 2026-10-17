@@ -9,6 +9,7 @@ const { cacheMiddleware } = require("../utils/cache");
 router.use(protect, tenantScope);
 
 router.get("/metrics", ctrl.metrics);
+router.post("/audience-preview", ctrl.audiencePreview);
 router.get("/", ctrl.list);
 router.get("/:id", ctrl.get);
 router.get("/:id/leads", ctrl.getEnrolledLeads);
