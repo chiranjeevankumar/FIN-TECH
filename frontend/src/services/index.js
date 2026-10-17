@@ -440,7 +440,6 @@ export const campaignService = {
   list: (params) => unwrapList(api.get("/campaigns", { params })),
   previewAudience: (audience) => unwrap(api.post("/campaigns/audience-preview", { audience })),
   previewCopy: (data) => unwrap(api.post("/campaigns/copy-preview", data)),
-  generateDrafts: (data) => unwrap(api.post("/campaigns/generate-drafts", data)),
   get: (id) => unwrap(api.get(`/campaigns/${id}`)),
   create: (data) => unwrap(api.post("/campaigns", data)),
   update: (id, data) => unwrap(api.patch(`/campaigns/${id}`, data)),
