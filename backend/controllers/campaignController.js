@@ -4,6 +4,7 @@ const { AppError } = require("../middleware/errorHandler");
 const asyncHandler = require("../utils/asyncHandler");
 const response = require("../utils/response");
 const { recordAudit } = require("../services/auditService");
+const { generateCampaignDraftOptions } = require("../services/aiEmailService");
 const { invalidateCache } = require("../utils/cache");
 const { personalizeCampaignEmail } = require("../services/aiEmailService");
 const {
@@ -759,8 +760,28 @@ const getEnrolledLeads = asyncHandler(async (req, res) => {
   return response.success(res, { campaignName: campaign.name, leads: result });
 });
 
+const generateDrafts = asyncHandler(async (req, res) => {
+  const { campaignName, prompt, tone, goal, valueProposition, audienceLabel, lead } = req.body || {};
+  if (typeof prompt !== "string" || prompt.trim().length < 3) {
+    throw new AppError("Enter a prompt or a few keywords before generating drafts.", 400);
+  }
+  if (prompt.length > 4000) throw new AppError("Campaign prompt must be 4,000 characters or fewer.", 400);
+  const drafts = await generateCampaignDraftOptions({
+    campaignName: String(campaignName || "").slice(0, 160),
+    prompt: prompt.trim(),
+    tone,
+    goal,
+    valueProposition: String(valueProposition || "").slice(0, 1000),
+    audienceLabel: String(audienceLabel || "").slice(0, 200),
+    lead: lead && typeof lead === "object" ? lead : null,
+  });
+  return response.success(res, { drafts });
+});
+
+
 module.exports = {
   copyPreview,
+  generateDrafts,
   audiencePreview,
   activateCampaign,
   list,
