@@ -129,6 +129,7 @@ exports.personalizeCampaignEmail = async ({
   audienceType,
   audienceContext,
   stepNumber,
+  selectedDraft,
 }) => {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -158,6 +159,10 @@ Audience label: ${audienceLabel || "General Leads"}
 Audience context and conditions: ${audienceContextText}
 Audience-specific instruction:
 ${audiencePrompt}
+
+Approved campaign draft selected by the campaign owner (use as the source/style; personalize it for this lead, preserving its intent and CTA):
+Subject: ${selectedDraft?.subject || "No approved draft supplied; create suitable copy."}
+Body: ${selectedDraft?.body || ""}
 
 Authoritative lead data from the application database:
 Name: ${name || ""}
