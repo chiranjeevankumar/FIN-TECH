@@ -10,7 +10,6 @@ router.use(protect, tenantScope);
 
 router.get("/metrics", ctrl.metrics);
 router.post("/audience-preview", ctrl.audiencePreview);
-router.post("/generate-drafts", permit("OWNER", "ADMIN"), ctrl.generateDrafts);
 router.post("/copy-preview", permit("OWNER", "ADMIN"), ctrl.copyPreview);
 router.get("/", ctrl.list);
 router.get("/:id", ctrl.get);
