@@ -46,7 +46,9 @@ export default function CampaignStudio({ onClose, onSaved }) {
     }
     if (
       type === "score" &&
-      (!Number.isFinite(Number(min)) ||
+      (min === "" ||
+        max === "" ||
+        !Number.isFinite(Number(min)) ||
         !Number.isFinite(Number(max)) ||
         Number(min) < 0 ||
         Number(max) > 100 ||
@@ -81,7 +83,7 @@ export default function CampaignStudio({ onClose, onSaved }) {
   const generateCopy = async () => {
     if (type === "tag" && !tagId) return toast.error("Select a tag before generating copy");
     if (type === "segment" && !segmentId) return toast.error("Select a saved segment before generating copy");
-    if (type === "score" && (Number(min) < 0 || Number(max) > 100 || Number(min) > Number(max))) return toast.error("Choose a valid score range from 0 to 100");
+    if (type === "score" && (min === "" || max === "" || !Number.isFinite(Number(min)) || !Number.isFinite(Number(max)) || Number(min) < 0 || Number(max) > 100 || Number(min) > Number(max))) return toast.error("Choose a valid score range from 0 to 100");
     setCopyBusy(true);
     try {
       const result = await campaignService.previewCopy({ audience, campaignName: name.trim(), tone, goal, valueProp });
@@ -102,7 +104,7 @@ export default function CampaignStudio({ onClose, onSaved }) {
     if (!schedule || new Date(schedule) <= new Date()) return toast.error("Choose a future schedule");
     if (type==="tag" && !tagId) return toast.error("Select a tag");
     if (type==="segment" && !segmentId) return toast.error("Select a saved segment");
-    if (Number(min)>Number(max) || Number(min)<0 || Number(max)>100) return toast.error("Choose a valid score range from 0 to 100");
+    if (type === "score" && (min === "" || max === "" || !Number.isFinite(Number(min)) || !Number.isFinite(Number(max)) || Number(min) < 0 || Number(max) > 100 || Number(min) > Number(max))) return toast.error("Choose a valid score range from 0 to 100");
     setBusy(true);
     try {
       await campaignService.create({
