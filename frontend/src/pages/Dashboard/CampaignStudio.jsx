@@ -21,6 +21,9 @@ export default function CampaignStudio({ onClose, onSaved }) {
   const [tone, setTone] = useState("professional");
   const [goal, setGoal] = useState("replies");
   const [valueProp, setValueProp] = useState("");
+  const [variants, setVariants] = useState([]);
+  const [selectedVariant, setSelectedVariant] = useState(1);
+  const [copyBusy, setCopyBusy] = useState(false);
   const [count, setCount] = useState(null);
   const [sample, setSample] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -74,6 +77,26 @@ export default function CampaignStudio({ onClose, onSaved }) {
     }
   };
 
+
+  const generateCopy = async () => {
+    if (type === "tag" && !tagId) return toast.error("Select a tag before generating copy");
+    if (type === "segment" && !segmentId) return toast.error("Select a saved segment before generating copy");
+    if (type === "score" && (Number(min) < 0 || Number(max) > 100 || Number(min) > Number(max))) return toast.error("Choose a valid score range from 0 to 100");
+    setCopyBusy(true);
+    try {
+      const result = await campaignService.previewCopy({ audience, campaignName: name.trim(), tone, goal, valueProp });
+      const data = result?.data ?? result;
+      if (!Array.isArray(data?.variants) || data.variants.length === 0) throw new Error("The AI service returned no email drafts.");
+      setVariants(data.variants);
+      setSelectedVariant(data.variants[0].id);
+      toast.success("AI email draft variants generated. Review before saving.");
+    } catch (e) {
+      toast.error(e?.message || "Could not generate email drafts. Check Gemini configuration.");
+    } finally {
+      setCopyBusy(false);
+    }
+  };
+
   const save = async () => {
     if (!name.trim()) return toast.error("Enter a campaign name");
     if (!schedule || new Date(schedule) <= new Date()) return toast.error("Choose a future schedule");
@@ -84,7 +107,7 @@ export default function CampaignStudio({ onClose, onSaved }) {
     try {
       await campaignService.create({
         name:name.trim(),
-        description:"Campaign goal: "+goal+". Copy tone: "+tone+". Value proposition: "+valueProp.trim(),
+        description:"Campaign goal: "+goal+". Copy tone: "+tone+". Value proposition: "+valueProp.trim()+(variants.length ? ". Reviewed draft variant: "+(variants.find(v=>v.id===selectedVariant)?.subject || "") : ""),
         audience,
         schedule:new Date(schedule).toISOString(),
         type:"email",
@@ -105,7 +128,7 @@ export default function CampaignStudio({ onClose, onSaved }) {
     {type==="segment"&&<label className="text-sm">Saved segment<select className={inputClass} value={segmentId} onChange={e=>setSegmentId(e.target.value)}><option value="">Choose segment</option>{segments.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>}
     {type==="score"&&<div className="grid grid-cols-2 gap-3"><label className="text-sm">Min score<input className={inputClass} type="number" min="0" max="100" value={min} onChange={e=>setMin(e.target.value)}/></label><label className="text-sm">Max score<input className={inputClass} type="number" min="0" max="100" value={max} onChange={e=>setMax(e.target.value)}/></label></div>}
     <div className="rounded-xl border p-4 dark:border-slate-700"><h4 className="font-semibold">Audience preview</h4><p className="mt-1 text-sm text-slate-500">{audienceLabel}</p><UptoButton onClick={scan} disabled={busy}>{busy?"Scanning…":"Scan & Preview Segment"}</UptoButton>{count!==null&&<div className="mt-3"><p className="text-2xl font-bold">{count}</p><p className="text-xs text-slate-500">Matching leads returned by current lead API query</p>{sample.map(l=><p key={l.id} className="mt-1 text-xs">{l.name||"Unnamed"} · {l.companyName||"No company"} · Score {l.score??"—"}</p>)}</div>}</div></div></section>}
-    {step===1&&<section><h3 className="mb-4 flex items-center gap-2 font-semibold"><Sparkles className="text-teal-600"/>AI copy studio</h3><p className="mb-4 text-sm text-slate-500">Choose a direction for the existing Gemini personalization service. Final content generation happens at send time if configured in the backend.</p><div className="grid gap-4 md:grid-cols-3"><label className="text-sm">Tone<select className={inputClass} value={tone} onChange={e=>setTone(e.target.value)}><option value="professional">Professional</option><option value="conversational">Conversational</option><option value="concise">Concise</option></select></label><label className="text-sm">Goal<select className={inputClass} value={goal} onChange={e=>setGoal(e.target.value)}><option value="replies">Get replies</option><option value="meetings">Book meetings</option><option value="awareness">Build awareness</option><option value="followup">Follow up</option></select></label><label className="text-sm">Value proposition<input className={inputClass} value={valueProp} onChange={e=>setValueProp(e.target.value)} placeholder="What value do you offer?"/></label></div><p className="mt-4 rounded-xl border p-3 text-sm dark:border-slate-700">Gemini generates each lead’s subject and email body at send time using lead details, campaign context, audience, and the direction above. No fixed subject/body template is saved.</p></section>}
+    {step===1&&<section><h3 className="mb-4 flex items-center gap-2 font-semibold"><Sparkles className="text-teal-600"/>AI copy studio</h3><p className="mb-4 text-sm text-slate-500">Generate three Gemini draft options, review the subjects and bodies, and choose a preferred direction. This preview never sends email; final messages remain personalized per lead at send time.</p><div className="grid gap-4 md:grid-cols-3"><label className="text-sm">Tone<select className={inputClass} value={tone} onChange={e=>setTone(e.target.value)}><option value="professional">Professional</option><option value="conversational">Conversational</option><option value="concise">Concise</option></select></label><label className="text-sm">Goal<select className={inputClass} value={goal} onChange={e=>setGoal(e.target.value)}><option value="replies">Get replies</option><option value="meetings">Book meetings</option><option value="awareness">Build awareness</option><option value="followup">Follow up</option></select></label><label className="text-sm">Value proposition<input className={inputClass} value={valueProp} onChange={e=>setValueProp(e.target.value)} placeholder="What value do you offer?"/></label></div><div className="mt-4 rounded-xl border p-4 dark:border-slate-700"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-semibold">AI draft preview</h4><p className="text-xs text-slate-500">Three draft variants · preview only · no email is sent</p></div><UptoButton onClick={generateCopy} disabled={copyBusy}>{copyBusy?"Generating…":"Generate 3 variants"}</UptoButton></div>{variants.length>0&&<div className="mt-4 grid gap-3 md:grid-cols-3">{variants.map(v=><button type="button" key={v.id} onClick={()=>setSelectedVariant(v.id)} className={"rounded-xl border p-3 text-left "+(selectedVariant===v.id?"border-teal-500 ring-2 ring-teal-500/20":"border-slate-200 dark:border-slate-700")}><span className="text-xs font-semibold text-teal-600">Variant {v.id}{selectedVariant===v.id?" · Selected":""}</span><p className="mt-2 text-sm font-semibold">{v.subject}</p><p className="mt-2 whitespace-pre-wrap text-xs text-slate-600 dark:text-slate-300">{v.body}</p></button>)}</div>}</div><p className="mt-4 rounded-xl border p-3 text-sm dark:border-slate-700">Final campaign emails are still personalized per lead when the sequence runs. Keep the scheduler disabled while testing.</p></section>}
     {step===2&&<section><h3 className="mb-4 flex items-center gap-2 font-semibold"><BarChart3 className="text-teal-600"/>Review & schedule</h3><div className="grid gap-3 md:grid-cols-3"><div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800"><Users/><p className="mt-2 text-xl font-bold">{count===null?"Not scanned":count}</p><p className="text-xs text-slate-500">Preview count, not a guaranteed enrollment count</p></div><div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800"><Sparkles/><p className="mt-2 font-bold">{tone}</p><p className="text-xs text-slate-500">Tone · goal: {goal}</p></div><div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800"><BarChart3/><p className="mt-2 font-bold">No prediction available</p><p className="text-xs text-slate-500">Open/click predictions require validated model or historical data</p></div></div><label className="mt-4 block max-w-md text-sm">Scheduled date & time<input className={inputClass} type="datetime-local" min={new Date(Date.now()+60000).toISOString().slice(0,16)} value={schedule} onChange={e=>setSchedule(e.target.value)}/></label><div className="mt-4 rounded-xl border p-4 text-sm dark:border-slate-700"><b>Audience:</b> {audienceLabel}<br/><b>AI direction:</b> {tone} tone · {goal}<br/><b>Schedule:</b> {schedule||"Not set"}</div></section>}
     <footer className="mt-6 flex justify-between border-t pt-4 dark:border-slate-700"><UptoButton variant="secondary" onClick={()=>step===0?onClose?.():setStep(step-1)}><ArrowLeft className="mr-1 inline h-4 w-4"/>{step===0?"Cancel":"Previous"}</UptoButton>{step<2?<UptoButton onClick={()=>setStep(step+1)}>Next step <ArrowRight className="ml-1 inline h-4 w-4"/></UptoButton>:<UptoButton disabled={busy} onClick={save}>{busy?"Saving…":"Save scheduled campaign"}</UptoButton>}</footer>
     <p className="mt-3 text-xs text-slate-500">Saving does not itself guarantee delivery. Keep the campaign scheduler disabled during testing.</p></UptoCard></div></div>;
