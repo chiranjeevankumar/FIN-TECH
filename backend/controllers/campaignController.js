@@ -64,6 +64,40 @@ const list = asyncHandler(async (req, res) => {
   return response.paginated(res, enrichedItems, total, page, limit);
 });
 
+const audiencePreview = asyncHandler(async (req, res) => {
+  const audience = req.body?.audience;
+  if (!audience || typeof audience !== "object" || Array.isArray(audience)) {
+    throw new AppError("A valid audience object is required.", 400);
+  }
+
+  const type = audience.type || "all";
+  if (!["all", "status", "tag", "score", "segment"].includes(type)) {
+    throw new AppError("Unsupported audience type.", 400);
+  }
+  if (type === "status" && !["new", "contacted", "qualified", "in_progress", "converted", "closed", "lost"].includes(audience.status)) {
+    throw new AppError("A valid lead status is required.", 400);
+  }
+  if (type === "tag" && (audience.tagId == null || audience.tagId === "" || !Number.isInteger(Number(audience.tagId)) || Number(audience.tagId) <= 0)) {
+    throw new AppError("A valid tag must be selected.", 400);
+  }
+  if (type === "segment" && (audience.savedSearchId == null || audience.savedSearchId === "" || !Number.isInteger(Number(audience.savedSearchId)) || Number(audience.savedSearchId) <= 0)) {
+    throw new AppError("A valid saved segment must be selected.", 400);
+  }
+  if (type === "score") {
+    const min = Number(audience.min);
+    const max = Number(audience.max);
+    if (audience.min == null || audience.max == null || !Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max > 100 || min > max) {
+      throw new AppError("Choose a valid score range from 0 to 100.", 400);
+    }
+  }
+
+  const leads = await getMatchingCampaignLeads(audience, req.orgId);
+  return response.success(res, {
+    count: leads.length,
+    sample: leads.slice(0, 5),
+  });
+});
+
 const get = asyncHandler(async (req, res) => {
   const campaign = await prisma.workflow.findFirst({ where: { id: Number(req.params.id), orgId: req.orgId } });
   if (!campaign) throw new AppError("Campaign not found.", 404);
@@ -686,6 +720,7 @@ const getEnrolledLeads = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  audiencePreview,
   activateCampaign,
   list,
   get,
