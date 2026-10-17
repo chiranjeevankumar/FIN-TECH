@@ -112,7 +112,8 @@ export default function CampaignStudio({ onClose, onSaved }) {
     try {
       await campaignService.create({
         name:name.trim(),
-        description:"Campaign goal: "+goal+". Copy tone: "+tone+". Value proposition: "+valueProp.trim()+(variants.length ? ". Reviewed draft variant: "+(variants.find(v=>v.id===selectedVariant)?.subject || "") : ""),
+        description:"Campaign goal: "+goal+". Copy tone: "+tone+". Value proposition: "+valueProp.trim()+". Prompt: "+prompt.trim()+". Selected Gemini draft: "+(selectedDraft+1),
+        content:[{type:"SEND_EMAIL",subject:drafts[selectedDraft].subject,body:drafts[selectedDraft].body,approvedDraftIndex:selectedDraft+1,prompt:prompt.trim(),tone,goal,valueProposition:valueProp.trim()}],
         audience,
         schedule:new Date(schedule).toISOString(),
         type:"email",
