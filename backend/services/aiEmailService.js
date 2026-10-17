@@ -227,3 +227,39 @@ exports.summarizeContent = async (text) => {
     throw new Error("AI summarization service unavailable");
   }
 };
+
+/**
+ * Generate two campaign-level email alternatives for review. This endpoint never sends mail.
+ */
+exports.generateCampaignDraftOptions = async ({ campaignName, prompt, tone, goal, valueProposition, audienceLabel, lead }) => {
+  if (!process.env.GEMINI_API_KEY) throw new Error("Gemini is not configured: GEMINI_API_KEY is missing");
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const safeLead = lead || {};
+  const requestPrompt = `Create exactly two distinct B2B outreach email alternatives for a campaign.
+Campaign: ${campaignName || "Untitled campaign"}
+Audience: ${audienceLabel || "Selected leads"}
+User prompt / keywords: ${prompt || "Write relevant, concise outreach"}
+Tone: ${tone || "professional"}
+Goal: ${goal || "replies"}
+Value proposition: ${valueProposition || "Not specified"}
+Representative lead context (use only facts supplied; do not invent): name=${safeLead.name || "unknown"}, company=${safeLead.companyName || safeLead.company || "unknown"}, job title=${safeLead.jobTitle || "unknown"}, industry=${safeLead.industry || "unknown"}, location=${safeLead.location || "unknown"}.
+Return ONLY JSON: {"drafts":[{"subject":"...","body":"..."},{"subject":"...","body":"..."}]}.
+Both drafts must have different angles, a clear but non-pushy CTA, and plain text bodies. Do not include markdown fences, placeholders, or unsupported claims.`;
+  try {
+    const response = await generateWithRetry(ai, { contents: [{ role: "user", parts: [{ text: requestPrompt }] }] });
+    const raw = response.text?.trim();
+    if (!raw) throw new Error("Gemini returned an empty response");
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (!Array.isArray(parsed?.drafts) || parsed.drafts.length < 2) throw new Error("Gemini did not return two drafts");
+    const drafts = parsed.drafts.slice(0, 2).map((draft) => ({
+      subject: String(draft?.subject || "").trim(),
+      body: String(draft?.body || "").trim(),
+    }));
+    if (drafts.some((draft) => !draft.subject || !draft.body)) throw new Error("Gemini returned incomplete drafts");
+    return drafts;
+  } catch (error) {
+    console.error("Campaign draft generation error:", error.message);
+    throw new Error("Could not generate two email drafts. Check Gemini configuration and try again.");
+  }
+};
