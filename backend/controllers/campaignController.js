@@ -6,6 +6,7 @@ const response = require("../utils/response");
 const { recordAudit } = require("../services/auditService");
 const { generateCampaignDraftOptions } = require("../services/aiEmailService");
 const { invalidateCache } = require("../utils/cache");
+const { personalizeCampaignEmail } = require("../services/aiEmailService");
 const {
   getMatchingCampaignLeads,
   getCampaignAudienceCount,
@@ -63,6 +64,45 @@ const list = asyncHandler(async (req, res) => {
   );
 
   return response.paginated(res, enrichedItems, total, page, limit);
+});
+
+
+const copyPreview = asyncHandler(async (req, res) => {
+  const { audience, campaignName, tone = "professional", goal = "replies", valueProp = "" } = req.body || {};
+  if (!audience || typeof audience !== "object" || Array.isArray(audience)) throw new AppError("A valid audience object is required.", 400);
+  if (!["professional", "conversational", "concise"].includes(tone)) throw new AppError("Choose a supported email tone.", 400);
+  if (!["replies", "meetings", "awareness", "followup"].includes(goal)) throw new AppError("Choose a supported campaign goal.", 400);
+  if (typeof valueProp !== "string" || valueProp.length > 500) throw new AppError("Value proposition must be 500 characters or fewer.", 400);
+  const matches = await getMatchingCampaignLeads(audience, req.orgId);
+  const lead = matches[0] || {};
+  const audienceType = audience.type || "all";
+  const audienceLabel = audience.label || campaignName || "General Leads";
+  const variantDirections = [
+    "Variant 1: lead with a relevant benefit and a simple, low-friction call to action.",
+    "Variant 2: lead with a concise, curiosity-building question without clickbait.",
+    "Variant 3: lead with a practical insight and a clear next step."
+  ];
+  const variants = [];
+  for (let i = 0; i < variantDirections.length; i++) {
+    const generated = await personalizeCampaignEmail({
+      name: lead.name, company: lead.companyName, jobTitle: lead.jobTitle,
+      industry: lead.industry, location: lead.location, leadStatus: lead.status,
+      leadScore: lead.score, campaignName: String(campaignName || "Sales outreach").slice(0, 120),
+      campaignDescription: [
+        "Draft only. Do not send this email.", "Requested tone: " + tone + ".",
+        "Campaign goal: " + goal + ".",
+        valueProp.trim() ? "Value proposition supplied by campaign owner: " + valueProp.trim() : "No specific value proposition supplied; do not invent one.",
+        variantDirections[i]
+      ].join("\n"),
+      audienceLabel, audienceType, audienceContext: audience, stepNumber: 1
+    });
+    variants.push({ id: i + 1, subject: generated.subject, body: generated.body });
+  }
+  return response.success(res, {
+    variants,
+    personalizedFor: lead.id ? { name: lead.name || null, company: lead.companyName || null } : null,
+    note: lead.id ? "Drafts personalized using one matching lead as a preview." : "No matching lead found; drafts use generic campaign context."
+  });
 });
 
 const audiencePreview = asyncHandler(async (req, res) => {
@@ -720,7 +760,6 @@ const getEnrolledLeads = asyncHandler(async (req, res) => {
   return response.success(res, { campaignName: campaign.name, leads: result });
 });
 
-
 const generateDrafts = asyncHandler(async (req, res) => {
   const { campaignName, prompt, tone, goal, valueProposition, audienceLabel, lead } = req.body || {};
   if (typeof prompt !== "string" || prompt.trim().length < 3) {
@@ -739,9 +778,11 @@ const generateDrafts = asyncHandler(async (req, res) => {
   return response.success(res, { drafts });
 });
 
+
 module.exports = {
-  audiencePreview,
+  copyPreview,
   generateDrafts,
+  audiencePreview,
   activateCampaign,
   list,
   get,
