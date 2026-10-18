@@ -458,6 +458,61 @@ const activateDueCampaigns = async () => {
   }
 };
 
+// Mark a running campaign complete once every enrollment has reached a terminal state.
+// Empty enrollment sets are deliberately ignored so campaigns with no matching leads
+// are not reported as completed accidentally.
+const reconcileCompletedCampaigns = async () => {
+  const campaigns = await prisma.workflow.findMany({
+    where: { trigger: "SCHEDULED_TIME", active: true },
+    include: {
+      sequence: {
+        include: { enrollments: { select: { status: true } } },
+      },
+    },
+  });
+
+  const terminalStatuses = new Set(["COMPLETED", "STOPPED", "REPLIED", "BOUNCED"]);
+
+  for (const campaign of campaigns) {
+    const conditions =
+      campaign.conditions && typeof campaign.conditions === "object"
+        ? campaign.conditions
+        : {};
+    const enrollments = campaign.sequence?.enrollments || [];
+
+    if (
+      conditions.status !== "running" ||
+      enrollments.length === 0 ||
+      !enrollments.every((enrollment) => terminalStatuses.has(enrollment.status))
+    ) {
+      continue;
+    }
+
+    await prisma.workflow.update({
+      where: { id: campaign.id },
+      data: {
+        active: false,
+        conditions: {
+          ...conditions,
+          status: "completed",
+          completedAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    await prisma.sequence.update({
+      where: { id: campaign.sequence.id },
+      data: { status: "ARCHIVED" },
+    });
+
+    logger.info("job.campaign.completed", {
+      campaignId: campaign.id,
+      campaignName: campaign.name,
+      enrollmentCount: enrollments.length,
+    });
+  }
+};
+
 const run = async () => {
   if (running) return;
   running = true;
@@ -466,6 +521,7 @@ const run = async () => {
     await activateDueCampaigns();
     await tasks.followupNewLeads();
     await tasks.processSequenceEnrollments();
+    await reconcileCompletedCampaigns();
   } catch (e) {
     logger.error("job.tick.error", { err: e.message });
   } finally {
