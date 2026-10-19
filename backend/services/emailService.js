@@ -160,74 +160,100 @@ const verifyConnection = async () => {
  * @returns {Promise<boolean>}
  */
 const sendCampaignEmail = async ({ lead, campaign, enrollment }) => {
-  if (!lead?.email) {
-    console.warn("[EmailService] Campaign email skipped: lead email missing.");
-    return false;
-  }
+const recipientEmail = lead?.email || enrollment?.email;
 
-  try {
-    const audience = campaign?.conditions?.audience || {};
+if (!recipientEmail) {
+console.warn("[EmailService] Campaign email skipped: recipient email missing.");
+return false;
+}
 
-    const audienceType = audience?.type || "all";
+try {
+const audience = campaign?.conditions?.audience || {};
+const audienceType = audience?.type || "all";
+const audienceLabel = audience?.label || campaign?.name || "General Leads";
+const currentStep = Array.isArray(enrollment?.steps)
+? enrollment.steps[enrollment.currentStep]
+: null;
 
-    const audienceContext = audience;
+const approvedAction = Array.isArray(campaign?.actions)
+  ? campaign.actions.find((action) => action?.type === "SEND_EMAIL") || campaign.actions[0]
+  : null;
 
-    const audienceLabel =
-      audience?.label ||
-      campaign?.name ||
-      "General Leads";
+const selectedDraft = approvedAction?.subject && approvedAction?.body
+  ? { subject: approvedAction.subject, body: approvedAction.body }
+  : null;
 
-    const currentStep = Array.isArray(enrollment?.steps)
-      ? enrollment.steps[enrollment.currentStep]
-      : null;
-    const approvedAction = Array.isArray(campaign?.actions)
-      ? campaign.actions.find((action) => action?.type === "SEND_EMAIL") || campaign.actions[0]
-      : null;
-    const selectedDraft = approvedAction?.subject && approvedAction?.body
-      ? { subject: approvedAction.subject, body: approvedAction.body }
-      : null;
+let generated;
 
-    const generated = await personalizeCampaignEmail({
-      name: lead.name,
-      company: lead.companyName,
-      jobTitle: lead.jobTitle,
-      industry: lead.industry,
-      location: lead.location,
-      leadStatus: lead.status,
-      leadScore: lead.score,
+try {
+  generated = await personalizeCampaignEmail({
+    name: lead.name,
+    company: lead.companyName,
+    jobTitle: lead.jobTitle,
+    industry: lead.industry,
+    location: lead.location,
+    leadStatus: lead.status,
+    leadScore: lead.score,
+    campaignName: campaign.name,
+    campaignDescription: campaign.description,
+    audienceLabel,
+    audienceType,
+    audienceContext: audience,
+    selectedDraft,
+    stepNumber: (enrollment.currentStep || 0) + 1,
+  });
+} catch (aiError) {
+  console.warn(
+    "[EmailService] AI unavailable; using local template:",
+    aiError.message || aiError
+  );
+}
 
-      campaignName: campaign.name,
-      campaignDescription: campaign.description,
+if (!generated?.subject || !generated?.body) {
+  const name = String(lead.name || "").trim();
+  const company = String(lead.companyName || lead.company || "").trim();
+  const campaignName = String(campaign?.name || "our campaign").trim();
+  const greeting = name ? "Hi " + name + "," : "Hello,";
+  const context = company ? " at " + company : "";
+  const detail = String(campaign?.description || "").trim();
 
-      audienceLabel,
-      audienceType,
-      audienceContext,
-      selectedDraft,
+  const subject = selectedDraft?.subject || ("Following up: " + campaignName);
+  const body = selectedDraft?.body || [
+    greeting,
+    "",
+    "I'm reaching out regarding " + campaignName + context + ".",
+    detail || "I'd be glad to share more information and learn whether this may be relevant to your team.",
+    "",
+    "Would you be open to a brief conversation?",
+    "",
+    "Best regards"
+  ].join("\n");
 
-      stepNumber: (enrollment.currentStep || 0) + 1,
-    });
+  generated = { subject, body };
+  console.log("[EmailService] Using fallback email template for campaign preview/send.");
+}
 
-    if (!generated?.subject || !generated?.body) {
-      console.warn(
-        "[EmailService] Gemini returned incomplete campaign email."
-      );
-      return false;
-    }
+const escapeHtml = (value) => String(value)
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;")
+  .replace(/'/g, "&#39;");
 
-    return await send({
-      to: lead.email,
-      subject: generated.subject,
-      html: generated.body.replace(/\n/g, "<br>"),
-      text: generated.body,
-    });
-  } catch (error) {
-    console.error(
-      "[EmailService] Gemini campaign email failed:",
-      error.message || error
-    );
+return await send({
+  to: recipientEmail,
+  subject: generated.subject,
+  html: escapeHtml(generated.body).replace(/\r?\n/g, "<br>"),
+  text: generated.body,
+});
 
-    return false;
-  }
+} catch (error) {
+console.error(
+"[EmailService] Campaign email send failed:",
+error.message || error
+);
+return false;
+}
 };
 module.exports = {
   send,

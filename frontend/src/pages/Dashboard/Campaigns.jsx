@@ -50,6 +50,9 @@ const Campaigns = () => {
     steps: [{ day: 0, subject: "", body: "" }],
   });
 
+  const [copyLoading, setCopyLoading] = useState(false);
+  const [copyVariants, setCopyVariants] = useState([]);
+
   const loadMetaData = async () => {
     try {
       const [tagsRes, segmentsRes] = await Promise.all([
@@ -226,6 +229,45 @@ const Campaigns = () => {
     setEditingId(null);
     setShowSegmentBuilder(false);
     resetDraft();
+  };
+
+  const handleGenerateMails = async () => {
+    setCopyLoading(true);
+    try {
+      const result = await campaignService.previewCopy({
+        audience: draft.audience || { type: "all" },
+        campaignName: draft.name || "Sales outreach",
+        tone: "professional",
+        goal: "replies",
+        valueProp: "",
+        prompt: "",
+      });
+
+      const variants = result?.variants || result?.data?.variants || [];
+      if (variants.length < 2) {
+        throw new Error("The AI service did not return two email drafts.");
+      }
+
+      setCopyVariants(variants);
+      toast.success("Two email drafts generated. Choose one to use.");
+    } catch (err) {
+      toast.error(err?.message || "Could not generate email drafts. Check the Gemini API quota.");
+    } finally {
+      setCopyLoading(false);
+    }
+  };
+
+  const handleSelectMailDraft = (mail) => {
+    setDraft((current) => {
+      const steps = [...(current.steps || [])];
+      steps[0] = {
+        ...(steps[0] || { day: 0, time: "10:00" }),
+        subject: mail.subject || "",
+        body: mail.body || "",
+      };
+      return { ...current, steps };
+    });
+    toast.success("Draft selected for the first campaign step.");
   };
 
   const handleCreate = async (e) => {
@@ -1340,11 +1382,42 @@ const Campaigns = () => {
                       required
                     />
 
-                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3 text-sm">
-                      <div className="font-medium">Email content</div>
-                      <div className="text-xs text-slate-500 mt-1">
-                        Gemini automatically generates a personalized subject and email body for each matching lead when the campaign runs.
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3 space-y-3">
+                      <div>
+                        <div className="font-medium">AI Email Studio</div>
+                        <div className="text-xs text-slate-500 mt-1">
+                          Generate two email drafts to review and select. Campaign sending can still personalize emails for each matching lead.
+                        </div>
                       </div>
+
+                      <UptoButton
+                        type="button"
+                        disabled={copyLoading}
+                        onClick={handleGenerateMails}
+                      >
+                        {copyLoading ? "Generating..." : "Generate Mails"}
+                      </UptoButton>
+
+                      {copyVariants.map((mail, mailIndex) => (
+                        <div
+                          key={mail.id || mailIndex}
+                          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 space-y-2"
+                        >
+                          <div className="font-medium">Draft {mailIndex + 1}</div>
+                          <div className="text-sm font-medium break-words">
+                            {mail.subject}
+                          </div>
+                          <div className="text-sm whitespace-pre-wrap break-words">
+                            {mail.body}
+                          </div>
+                          <UptoButton
+                            type="button"
+                            onClick={() => handleSelectMailDraft(mail)}
+                          >
+                            Use This Draft
+                          </UptoButton>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}

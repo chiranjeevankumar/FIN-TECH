@@ -68,42 +68,113 @@ const list = asyncHandler(async (req, res) => {
 
 
 const copyPreview = asyncHandler(async (req, res) => {
-  const { audience, campaignName, tone = "professional", goal = "replies", valueProp = "", prompt = "" } = req.body || {};
-  if (!audience || typeof audience !== "object" || Array.isArray(audience)) throw new AppError("A valid audience object is required.", 400);
-  if (!["professional", "conversational", "concise"].includes(tone)) throw new AppError("Choose a supported email tone.", 400);
-  if (!["replies", "meetings", "awareness", "followup"].includes(goal)) throw new AppError("Choose a supported campaign goal.", 400);
-  if (typeof valueProp !== "string" || valueProp.length > 500) throw new AppError("Value proposition must be 500 characters or fewer.", 400);
-  if (typeof prompt !== "string" || prompt.length > 1000) throw new AppError("Prompt must be 1000 characters or fewer.", 400);
-  const matches = await getMatchingCampaignLeads(audience, req.orgId);
-  const lead = matches[0] || {};
-  const audienceType = audience.type || "all";
-  const audienceLabel = audience.label || campaignName || "General Leads";
-  const variantDirections = [
-    "Draft 1: lead with a relevant benefit and a simple, low-friction call to action.",
-    "Draft 2: lead with a different angle, such as a concise curiosity-building question and a clear next step. Avoid clickbait."
-  ];
-  const variants = [];
-  for (let i = 0; i < variantDirections.length; i++) {
-    const generated = await personalizeCampaignEmail({
-      name: lead.name, company: lead.companyName, jobTitle: lead.jobTitle,
-      industry: lead.industry, location: lead.location, leadStatus: lead.status,
-      leadScore: lead.score, campaignName: String(campaignName || "Sales outreach").slice(0, 120),
-      campaignDescription: [
-        "Draft only. Do not send this email.", "Requested tone: " + tone + ".",
-        "Campaign goal: " + goal + ".",
-        valueProp.trim() ? "Value proposition supplied by campaign owner: " + valueProp.trim() : "No specific value proposition supplied; do not invent one.",
-        prompt.trim() ? "Campaign owner prompt or keywords: " + prompt.trim() : "No additional prompt supplied.",
-        variantDirections[i]
-      ].join("\n"),
-      audienceLabel, audienceType, audienceContext: audience, stepNumber: 1
-    });
-    variants.push({ id: i + 1, subject: generated.subject, body: generated.body });
-  }
-  return response.success(res, {
-    variants,
-    personalizedFor: lead.id ? { name: lead.name || null, company: lead.companyName || null } : null,
-    note: lead.id ? "Drafts personalized using one matching lead as a preview." : "No matching lead found; drafts use generic campaign context."
+const {
+audience,
+campaignName,
+tone = "professional",
+goal = "replies",
+valueProp = "",
+prompt = ""
+} = req.body || {};
+
+if (!audience || typeof audience !== "object" || Array.isArray(audience))
+throw new AppError("A valid audience object is required.", 400);
+if (!["professional", "conversational", "concise"].includes(tone))
+throw new AppError("Choose a supported email tone.", 400);
+if (!["replies", "meetings", "awareness", "followup"].includes(goal))
+throw new AppError("Choose a supported campaign goal.", 400);
+if (typeof valueProp !== "string" || valueProp.length > 500)
+throw new AppError("Value proposition must be 500 characters or fewer.", 400);
+if (typeof prompt !== "string" || prompt.length > 1000)
+throw new AppError("Prompt must be 1000 characters or fewer.", 400);
+
+const matches = await getMatchingCampaignLeads(audience, req.orgId);
+const lead = matches[0] || {};
+const campaign = String(campaignName || "Sales outreach").trim().slice(0, 120);
+const audienceType = audience.type || "all";
+const audienceLabel = audience.label || campaign;
+const offer = valueProp.trim() || prompt.trim();
+const cta = {
+replies: "Would you be open to a brief conversation?",
+meetings: "Would you be available for a short meeting?",
+awareness: "Would you like me to share more information?",
+followup: "Would it be helpful to discuss the next step?"
+}[goal];
+
+let variants = [];
+let usedFallback = false;
+
+try {
+const drafts = [];
+const directions = [
+"Lead with a relevant benefit and simple call to action.",
+"Use a different concise angle and clear next step. Avoid clickbait."
+];
+
+for (let i = 0; i < directions.length; i++) {
+  const generated = await personalizeCampaignEmail({
+    name: lead.name,
+    company: lead.companyName || lead.company,
+    jobTitle: lead.jobTitle,
+    industry: lead.industry,
+    location: lead.location,
+    leadStatus: lead.status,
+    leadScore: lead.score,
+    campaignName: campaign,
+    campaignDescription: [
+      "Draft only. Do not send this email.",
+      "Tone: " + tone,
+      "Goal: " + goal,
+      offer ? "Owner-provided context: " + offer : "Do not invent a value proposition.",
+      directions[i]
+    ].join("\n"),
+    audienceLabel,
+    audienceType,
+    audienceContext: audience,
+    stepNumber: 1
   });
+  drafts.push({ id: i + 1, subject: generated.subject, body: generated.body });
+}
+variants = drafts;
+
+} catch (error) {
+usedFallback = true;
+console.warn("[Campaign preview] AI unavailable; using local drafts:", error.message);
+
+const name = String(lead.name || "").trim();
+const company = String(lead.companyName || lead.company || "").trim();
+const greeting = name ? "Hi " + name + "," : "Hello,";
+const context = company ? " at " + company : "";
+const detail = offer || "I'd be glad to share relevant information and learn whether this could be useful to your team.";
+
+variants = [
+  {
+    id: 1,
+    subject: campaign + ": a possible next step",
+    body: [greeting, "", "I'm reaching out regarding " + campaign + context + ".", detail, "", cta, "", "Best regards"].join("\n")
+  },
+  {
+    id: 2,
+    subject: "A brief question about " + campaign,
+    body: [greeting, "", "I wanted to briefly connect about " + campaign + context + ".", offer ? "In particular, " + offer : "If relevant to your priorities, I can share a concise overview.", "", cta, "", "Best regards"].join("\n")
+  }
+];
+
+}
+
+return response.success(res, {
+variants,
+personalizedFor: lead.id ? {
+name: lead.name || null,
+company: lead.companyName || lead.company || null
+} : null,
+generationMode: usedFallback ? "template_fallback" : "gemini",
+note: usedFallback
+? "Gemini is unavailable. Two local template drafts were created; review them before sending."
+: lead.id
+? "Drafts personalized using one matching lead as a preview."
+: "No matching lead found; drafts use generic campaign context."
+});
 });
 
 const audiencePreview = asyncHandler(async (req, res) => {
