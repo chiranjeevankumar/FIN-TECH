@@ -22,9 +22,6 @@ export default function CampaignStudio({ onClose, onSaved }) {
   const [goal, setGoal] = useState("replies");
   const [valueProp, setValueProp] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [variants, setVariants] = useState([]);
-  const [selectedVariant, setSelectedVariant] = useState(1);
-  const [copyBusy, setCopyBusy] = useState(false);
   const [count, setCount] = useState(null);
   const [sample, setSample] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -81,25 +78,6 @@ export default function CampaignStudio({ onClose, onSaved }) {
   };
 
 
-  const generateCopy = async () => {
-    if (type === "tag" && !tagId) return toast.error("Select a tag before generating copy");
-    if (type === "segment" && !segmentId) return toast.error("Select a saved segment before generating copy");
-    if (type === "score" && (min === "" || max === "" || !Number.isFinite(Number(min)) || !Number.isFinite(Number(max)) || Number(min) < 0 || Number(max) > 100 || Number(min) > Number(max))) return toast.error("Choose a valid score range from 0 to 100");
-    setCopyBusy(true);
-    try {
-      const result = await campaignService.previewCopy({ audience, campaignName: name.trim(), tone, goal, valueProp, prompt: prompt.trim() });
-      const data = result?.data ?? result;
-      if (!Array.isArray(data?.variants) || data.variants.length === 0) throw new Error("The AI service returned no email drafts.");
-      setVariants(data.variants);
-      setSelectedVariant(data.variants[0].id);
-      toast.success("AI email draft variants generated. Review before saving.");
-    } catch (e) {
-      toast.error(e?.message || "Could not generate email drafts. Check Gemini configuration.");
-    } finally {
-      setCopyBusy(false);
-    }
-  };
-
   const save = async () => {
     if (!name.trim()) return toast.error("Enter a campaign name");
     if (!schedule || new Date(schedule) <= new Date()) return toast.error("Choose a future schedule");
@@ -136,7 +114,7 @@ export default function CampaignStudio({ onClose, onSaved }) {
   return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-100 p-3 dark:bg-slate-950 sm:p-6"><div className="mx-auto max-w-5xl">
     <header className="mb-5 flex items-center justify-between gap-3"><div><p className="text-xs font-bold tracking-widest text-teal-600">SALESFORGE · CAMPAIGN STUDIO</p><h2 className="text-2xl font-bold">Create campaign</h2><p className="text-sm text-slate-500">Audience segmentation · AI copy direction · Schedule review</p></div><UptoButton variant="secondary" onClick={onClose}>Back</UptoButton></header>
     <UptoCard><label className="block text-sm font-medium">Campaign name<input className={inputClass} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Q1 Outreach"/></label>
-    <nav className="my-5 flex flex-wrap gap-2">{["1 · Audience","2 · Personalization","3 · Review"].map((x,i)=><button type="button" key={x} onClick={()=>{if(i===2 && count === null){toast.error("Preview the audience before review so expected leads are accurate.");return;}setStep(i)}} className={"rounded-full px-4 py-2 text-sm "+(step===i?"bg-teal-600 text-white":"bg-slate-100 dark:bg-slate-800")}>{x}</button>)}</nav>
+    <nav className="my-5 flex flex-wrap gap-2">{["1 · Audience","2 · Personalization","3 · Review"].map((x,i)=><button type="button" key={x} onClick={()=>{if(i>0 && count === null){toast.error("Preview the audience before continuing.");return;}setStep(i)}} className={"rounded-full px-4 py-2 text-sm "+(step===i?"bg-teal-600 text-white":"bg-slate-100 dark:bg-slate-800")}>{x}</button>)}</nav>
     {step===0 && <section><h3 className="mb-3 flex items-center gap-2 font-semibold"><Users className="text-teal-600"/>Define target audience</h3><div className="grid gap-4 md:grid-cols-2"><label className="text-sm">Audience<select className={inputClass} value={type} onChange={e=>{setType(e.target.value);setCount(null)}}><option value="all">All Leads</option><option value="status">By Status</option><option value="tag">By Tag</option><option value="segment">By Saved Segment</option><option value="score">By Lead Score</option></select></label>
     {type==="status"&&<label className="text-sm">Status<select className={inputClass} value={status} onChange={e=>setStatus(e.target.value)}>{statuses.map(s=><option key={s}>{s}</option>)}</select></label>}
     {type==="tag"&&<label className="text-sm">Tag<select className={inputClass} value={tagId} onChange={e=>setTagId(e.target.value)}><option value="">Choose tag</option>{tags.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></label>}
