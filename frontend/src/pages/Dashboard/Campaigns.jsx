@@ -5,7 +5,7 @@ import {
   UptoPage, UptoHero, UptoButton, UptoInput, UptoBadge,
   UptoSpinner, UptoError, UptoEmptyState, UptoCard,
 } from "@/components/UI/UptoHooks";
-import { Megaphone, Plus, Sparkles } from "lucide-react";
+import { Megaphone, Sparkles } from "lucide-react";
 import CampaignStudio from "./CampaignStudio";
 import { toast } from "sonner";
 
@@ -437,11 +437,8 @@ const Campaigns = () => {
             <UptoButton onClick={() => setShowStudio(true)}>
               <Sparkles className="mr-1 h-4 w-4 inline" /> AI Campaign Studio
             </UptoButton>
-            <UptoButton variant="secondary" onClick={openNewCampaign}>
-              <Plus className="mr-1 h-4 w-4 inline" /> New campaign
-            </UptoButton>
             <UptoButton variant="secondary" onClick={() => setShowWaveOverview((value) => !value)}>
-              <Megaphone className="mr-1 h-4 w-4 inline" /> Wave Campaign
+              <Megaphone className="mr-1 h-4 w-4 inline" /> Campaign History
             </UptoButton>
           </div>
         }
