@@ -24,7 +24,7 @@ const Campaigns = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [showStudio, setShowStudio] = useState(false);
+  const [showStudio, setShowStudio] = useState(true);
   const [showWaveOverview, setShowWaveOverview] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [tags, setTags] = useState([]);
@@ -476,15 +476,17 @@ const Campaigns = () => {
         subtitle="Email and marketing automation"
         actions={
           <div className="flex flex-wrap gap-2">
-            <UptoButton onClick={() => setShowStudio(true)}>
+            <UptoButton onClick={() => { setShowStudio(true); setShowWaveOverview(false); }}>
               <Sparkles className="mr-1 h-4 w-4 inline" /> AI Campaign Studio
             </UptoButton>
-            <UptoButton variant="secondary" onClick={() => setShowWaveOverview((value) => !value)}>
+            <UptoButton variant="secondary" onClick={() => { setShowWaveOverview(true); setShowStudio(false); }}>
               <Megaphone className="mr-1 h-4 w-4 inline" /> Campaign History
             </UptoButton>
           </div>
         }
       />
+
+      {showStudio && <CampaignStudio onClose={() => setShowStudio(false)} onSaved={() => load()} />}
 
       {showWaveOverview && (
         <UptoCard>
@@ -510,7 +512,7 @@ const Campaigns = () => {
         </UptoCard>
       )}
 
-      <UptoCard>
+      {showWaveOverview && <UptoCard>
         {loading && <UptoSpinner />}
 
         {error && <UptoError message={error} onRetry={load} />}
@@ -728,11 +730,7 @@ const Campaigns = () => {
             ))}
           </div>
         )}
-      </UptoCard>
-
-      {showStudio && (
-        <CampaignStudio onClose={() => setShowStudio(false)} onSaved={() => load()} />
-      )}
+      </UptoCard>}
 
       {showCreate && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
