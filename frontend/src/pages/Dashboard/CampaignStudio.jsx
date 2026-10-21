@@ -144,7 +144,7 @@ export default function CampaignStudio({ onClose, onSaved }) {
     } catch(e) { toast.error(e?.message || "Could not save campaign"); }
     finally { setBusy(false); }
   };
-  return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-100 p-3 dark:bg-slate-950 sm:p-6"><div className="mx-auto max-w-5xl">
+  return <div className="w-full overflow-y-auto rounded-2xl bg-slate-100 p-3 dark:bg-slate-950 sm:p-6"><div className="mx-auto max-w-5xl">
     <header className="mb-5 flex items-center justify-between gap-3"><div><p className="text-xs font-bold tracking-widest text-teal-600">SALESFORGE · CAMPAIGN STUDIO</p><h2 className="text-2xl font-bold">Create campaign</h2><p className="text-sm text-slate-500">Audience segmentation · AI copy direction · Schedule review</p></div><UptoButton variant="secondary" onClick={onClose}>Back</UptoButton></header>
     <UptoCard><label className="block text-sm font-medium">Campaign name<input className={inputClass} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Q1 Outreach"/></label>
     <nav className="my-5 flex flex-wrap gap-2">{["1 · Audience","2 · Personalization","3 · Review"].map((x,i)=><button type="button" key={x} onClick={()=>{if(i>0 && count === null){toast.error("Preview the audience before continuing.");return;}setStep(i)}} className={"rounded-full px-4 py-2 text-sm "+(step===i?"bg-teal-600 text-white":"bg-slate-100 dark:bg-slate-800")}>{x}</button>)}</nav>
