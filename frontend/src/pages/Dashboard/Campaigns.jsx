@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { campaignService, tagService, savedSearchService } from "@/services";
 import {
-  UptoPage, UptoHero, UptoButton, UptoInput, UptoBadge,
+  UptoPage, UptoButton, UptoInput, UptoBadge,
   UptoSpinner, UptoError, UptoEmptyState, UptoCard,
 } from "@/components/UI/UptoHooks";
 import { Megaphone, Sparkles } from "lucide-react";
@@ -471,47 +471,25 @@ const Campaigns = () => {
 
   return (
     <UptoPage>
-      <UptoHero
-        title="Campaigns"
-        subtitle="Email and marketing automation"
-        actions={
-          <div className="flex flex-wrap gap-2">
+      <section className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:px-5 sm:py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-teal-600">Marketing workspace</p>
+            <h1 className="mt-0.5 text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">Campaigns</h1>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Email and marketing automation</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <UptoButton onClick={() => { setShowStudio(true); setShowWaveOverview(false); }}>
-              <Sparkles className="mr-1 h-4 w-4 inline" /> AI Campaign Studio
+              <Sparkles className="mr-1 inline h-4 w-4" /> Create Campaign
             </UptoButton>
             <UptoButton variant="secondary" onClick={() => { setShowWaveOverview(true); setShowStudio(false); }}>
-              <Megaphone className="mr-1 h-4 w-4 inline" /> Campaign History
+              <Megaphone className="mr-1 inline h-4 w-4" /> Campaign History
             </UptoButton>
           </div>
-        }
-      />
+        </div>
+      </section>
 
-      {showStudio && <CampaignStudio onClose={() => setShowStudio(false)} onSaved={() => load()} />}
-
-      {showWaveOverview && (
-        <UptoCard>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div><h2 className="text-lg font-semibold">Wave Campaign Overview</h2><p className="text-sm text-slate-500">Track campaign progress and status.</p></div>
-            <UptoButton variant="secondary" onClick={() => setShowWaveOverview(false)}>Close overview</UptoButton>
-          </div>
-          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
-            {[
-              { label: "Active", count: items.filter((c) => c.active && c.conditions?.status === "running").length },
-              { label: "Scheduled", count: items.filter((c) => c.conditions?.status === "scheduled" && !c.active).length },
-              { label: "Completed", count: items.filter((c) => c.conditions?.status === "completed").length },
-              { label: "Paused", count: items.filter((c) => c.conditions?.status === "paused").length },
-              { label: "Draft / Other", count: items.filter((c) => !["running", "scheduled", "completed", "paused"].includes(c.conditions?.status) || (!c.active && !c.conditions?.status)).length },
-            ].map((status) => <div key={status.label} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"><p className="text-xs text-slate-500">{status.label}</p><p className="text-2xl font-bold">{status.count}</p></div>)}
-          </div>
-          {loading ? <UptoSpinner /> : error ? <UptoError message={error} onRetry={load} /> : items.length === 0 ? <UptoEmptyState icon={Megaphone} title="No campaigns yet" body="Create a campaign to see it tracked here." /> : (
-            <div className="space-y-2">{items.map((campaign) => {
-              const status = campaign.conditions?.status === "running" || campaign.active ? "Active" : campaign.conditions?.status === "scheduled" ? "Scheduled" : campaign.conditions?.status === "completed" ? "Completed" : campaign.conditions?.status === "paused" ? "Paused" : campaign.conditions?.status === "error" ? "Error" : "Draft";
-              return <div key={campaign.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700"><div className="min-w-0"><p className="font-medium">{campaign.name}</p><p className="text-xs text-slate-500">{renderAudienceLabel(campaign.conditions?.audience)} · {campaign.conditions?.schedule ? new Date(campaign.conditions.schedule).toLocaleString() : "No schedule"}</p></div><UptoBadge>{status}</UptoBadge></div>;
-            })}</div>
-          )}
-        </UptoCard>
-      )}
-
+      {showStudio && <CampaignStudio onClose={() => { setShowStudio(false); setShowWaveOverview(true); }} onSaved={() => load()} />}
       {showWaveOverview && <UptoCard>
         {loading && <UptoSpinner />}
 
