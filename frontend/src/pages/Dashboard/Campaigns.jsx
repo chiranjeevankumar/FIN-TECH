@@ -2,10 +2,35 @@
 import React, { useEffect, useState } from "react";
 import { campaignService, tagService, savedSearchService } from "@/services";
 import {
-  UptoPage, UptoButton, UptoInput, UptoBadge,
-  UptoSpinner, UptoError, UptoEmptyState, UptoCard,
+  useUptoStyles,
+  UptoPage,
+  UptoHero,
+  UptoButton,
+  UptoInput,
+  UptoBadge,
+  UptoSpinner,
+  UptoError,
+  UptoEmptyState,
+  UptoCard,
 } from "@/components/UI/UptoHooks";
-import { Megaphone, Sparkles } from "lucide-react";
+import {
+  Megaphone,
+  Sparkles,
+  Plus,
+  Play,
+  Pause,
+  Square,
+  Clock,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Edit2,
+  Trash2,
+  Users,
+  CheckCircle2,
+  AlertCircle,
+  Activity,
+} from "lucide-react";
 import CampaignStudio from "./CampaignStudio";
 import { toast } from "sonner";
 
@@ -20,20 +45,20 @@ const LEAD_STATUS_OPTIONS = [
 ];
 
 const Campaigns = () => {
+  const s = useUptoStyles();
+  const { darkMode } = s;
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [showStudio, setShowStudio] = useState(true);
-  const [showWaveOverview, setShowWaveOverview] = useState(false);
+  const [showStudio, setShowStudio] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [tags, setTags] = useState([]);
   const [segments, setSegments] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
   const [leadsByCampaign, setLeadsByCampaign] = useState({});
   const [loadingLeads, setLoadingLeads] = useState(false);
-  const [showSegmentBuilder, setShowSegmentBuilder] = useState(false);
-  const [segmentDraft, setSegmentDraft] = useState({ name: "", logic: "AND", conditions: [] });
 
   const toLocalDateTimeInput = (value) => {
     if (!value) return "";
@@ -47,11 +72,11 @@ const Campaigns = () => {
     name: "",
     audience: { type: "all" },
     schedule: "",
-    steps: [{ day: 0, subject: "", body: "" }],
+    steps: [
+      { day: 0, subject: "", body: "", time: "10:00" },
+      { day: 3, subject: "", body: "", time: "10:00" },
+    ],
   });
-
-  const [copyLoading, setCopyLoading] = useState(false);
-  const [copyVariants, setCopyVariants] = useState([]);
 
   const loadMetaData = async () => {
     try {
@@ -119,7 +144,11 @@ const Campaigns = () => {
           }));
         }
       } catch (err) {
-        if (err?.statusCode === 404 || err?.response?.status === 404 || String(err?.message).includes("not found")) {
+        if (
+          err?.statusCode === 404 ||
+          err?.response?.status === 404 ||
+          String(err?.message).includes("not found")
+        ) {
           if (isMounted) {
             setExpandedId(null);
             setLeadsByCampaign((prev) => {
@@ -155,18 +184,6 @@ const Campaigns = () => {
       });
     } else if (type === "status") {
       setDraft({ ...draft, audience: { type: "status", status: "new" } });
-    } else if (type === "score") {
-      setDraft({
-        ...draft,
-        audience: {
-          type: "score",
-          operator: "gte",
-          value: 80,
-          min: "",
-          max: "",
-          conditions: [],
-        },
-      });
     } else if (type === "segment") {
       setDraft({
         ...draft,
@@ -199,15 +216,6 @@ const Campaigns = () => {
       return `Status: ${matchedStatus ? matchedStatus.label : audienceObj.status}`;
     }
 
-    if (audienceObj?.type === "score") {
-      const op = audienceObj.operator || (audienceObj.min !== "" && audienceObj.max !== "" ? "between" : "gte");
-      if (op === "between") {
-        return `Score: ${audienceObj.min}–${audienceObj.max}`;
-      }
-      const symbols = { gt: ">", gte: "≥", lt: "<", lte: "≤" };
-      return `Score: ${symbols[op] || "≥"} ${audienceObj.value ?? audienceObj.min ?? audienceObj.max}`;
-    }
-
     if (audienceObj?.type === "segment") {
       const seg = segments.find((s) => s.id === Number(audienceObj.savedSearchId));
       return seg ? `Segment: ${seg.name}` : `Segment #${audienceObj.savedSearchId}`;
@@ -221,96 +229,21 @@ const Campaigns = () => {
       name: "",
       audience: { type: "all" },
       schedule: "",
-      steps: [{ day: 0, subject: "", body: "" }],
+      steps: [
+        { day: 0, subject: "", body: "", time: "10:00" },
+        { day: 3, subject: "", body: "", time: "10:00" },
+      ],
     });
   };
 
   const closeEditor = () => {
     setShowCreate(false);
     setEditingId(null);
-    setShowSegmentBuilder(false);
     resetDraft();
-  };
-
-  const handleGenerateMails = async () => {
-    setCopyLoading(true);
-    try {
-      const result = await campaignService.previewCopy({
-        audience: draft.audience || { type: "all" },
-        campaignName: draft.name || "Sales outreach",
-        tone: "professional",
-        goal: "replies",
-        valueProp: "",
-        prompt: "",
-      });
-
-      const variants = result?.variants || result?.data?.variants || [];
-      if (variants.length < 2) {
-        throw new Error("The AI service did not return two email drafts.");
-      }
-
-      setCopyVariants(variants);
-      toast.success("Two email drafts generated. Choose one to use.");
-    } catch (err) {
-      toast.error(err?.message || "Could not generate email drafts. Check the Gemini API quota.");
-    } finally {
-      setCopyLoading(false);
-    }
-  };
-
-  const handleSelectMailDraft = (mail) => {
-    setDraft((current) => {
-      const steps = [...(current.steps || [])];
-      steps[0] = {
-        ...(steps[0] || { day: 0, time: "10:00" }),
-        subject: mail.subject || "",
-        body: mail.body || "",
-      };
-      return { ...current, steps };
-    });
-    toast.success("Draft selected for the first campaign step.");
   };
 
   const handleCreate = async (e) => {
     e.preventDefault();
-
-    const aud = draft.audience;
-
-    if (typeof aud === "object") {
-      if (aud.type === "tag" && (!aud.tagId || aud.tagId === "")) {
-        toast.error("Please select a tag");
-        return;
-      }
-
-      if (aud.type === "status" && !aud.status) {
-        toast.error("Please select a status");
-        return;
-      }
-
-      if (aud.type === "score") {
-        const operator = aud.operator || "gte";
-
-        if (operator === "between") {
-          if (aud.min === "" || aud.max === "") {
-            toast.error("Please provide both minimum and maximum scores");
-            return;
-          }
-
-          if (Number(aud.min) > Number(aud.max)) {
-            toast.error("Minimum score cannot be greater than maximum score");
-            return;
-          }
-        } else if (aud.value === "" || aud.value === undefined) {
-          toast.error("Please provide a score value");
-          return;
-        }
-      }
-
-      if (aud.type === "segment" && !aud.savedSearchId) {
-        toast.error("Please select a segment");
-        return;
-      }
-    }
 
     if (!draft.name.trim()) {
       toast.error("Please enter a campaign name.");
@@ -334,15 +267,10 @@ const Campaigns = () => {
 
       if (editingId) {
         await campaignService.update(editingId, payload);
-        setLeadsByCampaign((prev) => {
-          const next = { ...prev };
-          delete next[editingId];
-          return next;
-        });
         toast.success("Campaign updated");
       } else {
         await campaignService.create(payload);
-        toast.success("Campaign created");
+        toast.success("Campaign created with 2-step sequence");
       }
 
       closeEditor();
@@ -357,8 +285,8 @@ const Campaigns = () => {
       await campaignService.launch(id);
       toast.success("Campaign launched");
       load();
-    } catch (err) {
-      toast.error(err?.message || "Launch failed");
+    } catch (e) {
+      toast.error(e?.message || "Launch failed");
     }
   };
 
@@ -367,8 +295,8 @@ const Campaigns = () => {
       await campaignService.pause(id);
       toast.success("Campaign paused");
       load();
-    } catch (err) {
-      toast.error(err?.message || "Pause failed");
+    } catch (e) {
+      toast.error(e?.message || "Pause failed");
     }
   };
 
@@ -377,8 +305,8 @@ const Campaigns = () => {
       await campaignService.stop(id);
       toast.success("Campaign stopped");
       load();
-    } catch (err) {
-      toast.error(err?.message || "Stop failed");
+    } catch (e) {
+      toast.error(e?.message || "Stop failed");
     }
   };
 
@@ -387,8 +315,8 @@ const Campaigns = () => {
       await campaignService.resume(id);
       toast.success("Campaign resumed");
       load();
-    } catch (err) {
-      toast.error(err?.message || "Resume failed");
+    } catch (e) {
+      toast.error(e?.message || "Resume failed");
     }
   };
 
@@ -453,181 +381,352 @@ const Campaigns = () => {
       steps: campaign.conditions?.steps?.length
         ? campaign.conditions.steps
         : [
-            {
-              day: 0,
-              subject: campaign.conditions?.subject || "",
-              body: campaign.conditions?.body || "",
-              time: "10:00",
-            },
+            { day: 0, subject: "", body: "", time: "10:00" },
+            { day: 3, subject: "", body: "", time: "10:00" },
           ],
     });
 
     setShowCreate(true);
   };
 
-  const openNewCampaign = () => {
-    setEditingId(null);
-    resetDraft();
-    setShowCreate(true);
+  const getStatusBadge = (c) => {
+    const status = c.conditions?.status;
+    if (status === "paused") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+          <Pause className="w-3 h-3" /> Paused
+        </span>
+      );
+    }
+    if (status === "scheduled") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+          <Clock className="w-3 h-3" /> Scheduled
+        </span>
+      );
+    }
+    if (status === "completed") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+          <CheckCircle2 className="w-3 h-3" /> Completed
+        </span>
+      );
+    }
+    if (status === "error") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+          <AlertCircle className="w-3 h-3" /> Error
+        </span>
+      );
+    }
+    if (c.active) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20">
+          <Activity className="w-3 h-3 animate-pulse" /> Running
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20">
+        Draft
+      </span>
+    );
   };
 
   return (
     <UptoPage>
-      <section className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:px-5 sm:py-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-teal-600">Marketing workspace</p>
-            <h1 className="mt-0.5 text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">Campaigns</h1>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Email and marketing automation</p>
-          </div>
+      {/* Top Hero Header */}
+      <UptoHero
+        title="Campaigns"
+        subtitle="Email and marketing automation."
+        darkMode={darkMode}
+        actions={
           <div className="flex flex-wrap items-center gap-2">
-            <UptoButton variant="secondary" onClick={() => setShowStudio(false)}>
-              <Megaphone className="mr-1 inline h-4 w-4" />
-              Campaign History
+            <UptoButton
+              variant={!showStudio ? "primary" : "secondary"}
+              onClick={() => setShowStudio(false)}
+            >
+              <Megaphone className="mr-1.5 inline h-4 w-4" /> Campaign History
             </UptoButton>
-            <UptoButton onClick={() => setShowStudio(true)}>
-              <Sparkles className="mr-1 inline h-4 w-4" />
-              Create Campaign
+            <UptoButton
+              variant={showStudio ? "primary" : "secondary"}
+              onClick={() => setShowStudio(true)}
+            >
+              <Sparkles className="mr-1.5 inline h-4 w-4" /> Create Campaign
             </UptoButton>
           </div>
-        </div>
-      </section>
+        }
+      />
 
-      {showWaveOverview && (
-        <UptoCard>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div><h2 className="text-lg font-semibold">Wave Campaign Overview</h2><p className="text-sm text-slate-500">Track campaign progress and status.</p></div>
-            <UptoButton variant="secondary" onClick={() => setShowWaveOverview(false)}>Close overview</UptoButton>
-          </div>
-          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
-            {[
-              { label: "Active", count: items.filter((c) => c.active && c.conditions?.status === "running").length },
-              { label: "Scheduled", count: items.filter((c) => c.conditions?.status === "scheduled" && !c.active).length },
-              { label: "Completed", count: items.filter((c) => c.conditions?.status === "completed").length },
-              { label: "Paused", count: items.filter((c) => c.conditions?.status === "paused").length },
-              { label: "Draft / Other", count: items.filter((c) => !["running", "scheduled", "completed", "paused"].includes(c.conditions?.status) || (!c.active && !c.conditions?.status)).length },
-            ].map((status) => <div key={status.label} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"><p className="text-xs text-slate-500">{status.label}</p><p className="text-2xl font-bold">{status.count}</p></div>)}
-          </div>
-          {loading ? <UptoSpinner /> : error ? <UptoError message={error} onRetry={load} /> : items.length === 0 ? <UptoEmptyState icon={Megaphone} title="No campaigns yet" body="Create a campaign to see it tracked here." /> : (
-            <div className="space-y-2">{items.map((campaign) => {
-              const status = campaign.conditions?.status === "running" || campaign.active ? "Active" : campaign.conditions?.status === "scheduled" ? "Scheduled" : campaign.conditions?.status === "completed" ? "Completed" : campaign.conditions?.status === "paused" ? "Paused" : campaign.conditions?.status === "error" ? "Error" : "Draft";
-              return <div key={campaign.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700"><div className="min-w-0"><p className="font-medium">{campaign.name}</p><p className="text-xs text-slate-500">{renderAudienceLabel(campaign.conditions?.audience)} · {campaign.conditions?.schedule ? new Date(campaign.conditions.schedule).toLocaleString() : "No schedule"}</p></div><UptoBadge>{status}</UptoBadge></div>;
-            })}</div>
-          )}
-        </UptoCard>
+      {/* Campaign Studio Popup Modal (opens on top centered) */}
+      {showStudio && (
+        <CampaignStudio onClose={() => setShowStudio(false)} onSaved={() => load()} />
       )}
 
-      {!showStudio && (
-        <UptoCard>
-          {loading && <UptoSpinner />}
-          {error && <UptoError message={error} onRetry={load} />}
-          {!loading && !error && items.length === 0 && (
-            <UptoEmptyState
-              icon={Megaphone}
-              title="No campaigns"
-              body="Create a campaign to reach your audience."
-            />
+      {/* Campaign History Board */}
+      <div className="w-full space-y-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/60 shadow-sm">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Total Campaigns
+            </span>
+            <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              {items.length}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/60 shadow-sm">
+            <span className="text-xs font-semibold uppercase tracking-wider text-teal-600 dark:text-teal-400">
+              Running
+            </span>
+            <p className="mt-1 text-2xl font-bold tracking-tight text-teal-600 dark:text-teal-400">
+              {items.filter((c) => c.active).length}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/60 shadow-sm">
+            <span className="text-xs font-semibold uppercase tracking-wider text-blue-500">
+              Scheduled
+            </span>
+            <p className="mt-1 text-2xl font-bold tracking-tight text-blue-500">
+              {items.filter((c) => c.conditions?.status === "scheduled" && !c.active).length}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/60 shadow-sm">
+            <span className="text-xs font-semibold uppercase tracking-wider text-emerald-500">
+              Completed
+            </span>
+            <p className="mt-1 text-2xl font-bold tracking-tight text-emerald-500">
+              {items.filter((c) => c.conditions?.status === "completed").length}
+            </p>
+          </div>
+        </div>
+
+        <UptoCard className="p-0 overflow-hidden border border-slate-200 dark:border-slate-800">
+          {loading && (
+            <div className="p-8">
+              <UptoSpinner />
+            </div>
           )}
+
+          {error && (
+            <div className="p-6">
+              <UptoError message={error} onRetry={load} />
+            </div>
+          )}
+
+          {!loading && !error && items.length === 0 && (
+            <div className="p-8">
+              <UptoEmptyState
+                icon={Megaphone}
+                title="No campaigns yet"
+                body="Launch your first outreach or workflow to track activity and delivery status here."
+              />
+            </div>
+          )}
+
           {!loading && !error && items.length > 0 && (
-            <div className="space-y-2">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
               {items.map((c) => (
-                <div key={c.id} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="font-medium">{c.name}</div>
-                      <div className="text-xs text-slate-500">
-                        {renderAudienceLabel(c.conditions?.audience)} ·{" "}
-                        {c.conditions?.schedule ? new Date(c.conditions.schedule).toLocaleString() : "No schedule"} ·{" "}
-                        {c.conditions?.steps?.length
-                          ? `${c.conditions.steps.length} step${c.conditions.steps.length > 1 ? "s" : ""}`
-                          : c.conditions?.subject || "—"}
-                        {c.conditions?.status === "scheduled" && !c.active
-                          ? ` · Expected Leads: ${c.expectedLeads ?? 0}`
-                          : ""}
+                <div
+                  key={c.id}
+                  className="group transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-800/30 p-4 sm:p-5"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">
+                          {c.name}
+                        </h3>
+                        {getStatusBadge(c)}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-y-1.5 gap-x-3 text-xs text-slate-500 dark:text-slate-400">
+                        <span className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">
+                          <Users className="h-3.5 w-3.5 text-teal-500" />
+                          {renderAudienceLabel(c.conditions?.audience)}
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                          {c.conditions?.schedule
+                            ? new Date(c.conditions.schedule).toLocaleString(undefined, {
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "No schedule"}
+                        </span>
+
+                        {c.conditions?.status === "scheduled" && !c.active && (
+                          <>
+                            <span>•</span>
+                            <span className="font-semibold text-blue-600 dark:text-blue-400">
+                              {c.expectedLeads ?? 0} Expected Leads
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
+
                     <div className="flex flex-wrap items-center gap-2">
-                      <UptoBadge>
-                        {c.conditions?.status === "paused" ? "Paused"
-                          : c.conditions?.status === "scheduled" ? "Scheduled"
-                          : c.conditions?.status === "completed" ? "Completed"
-                          : c.conditions?.status === "error" ? "Error"
-                          : c.active ? "Running" : "Draft"}
-                      </UptoBadge>
                       {c.conditions?.status === "paused" ? (
                         <>
-                          <UptoButton variant="ghost" onClick={() => handleResume(c.id)}>Resume</UptoButton>
-                          <UptoButton variant="secondary" onClick={() => handleStop(c.id)}>Stop</UptoButton>
+                          <UptoButton
+                            variant="ghost"
+                            className="text-xs h-8 px-2.5 text-teal-600 dark:text-teal-400"
+                            onClick={() => handleResume(c.id)}
+                          >
+                            <Play className="h-3.5 w-3.5 mr-1" /> Resume
+                          </UptoButton>
+                          <UptoButton
+                            variant="secondary"
+                            className="text-xs h-8 px-2.5"
+                            onClick={() => handleStop(c.id)}
+                          >
+                            <Square className="h-3 w-3 mr-1 text-slate-500" /> Stop
+                          </UptoButton>
                         </>
-                      ) : c.conditions?.status === "cancelled" ? (
-                        <span className="text-sm text-slate-500">Stopped</span>
-                      ) : c.conditions?.status === "completed" ? (
-                        <span className="text-sm text-slate-500">Completed</span>
                       ) : !c.active && c.conditions?.status === "scheduled" ? (
-                        <span className="text-sm text-slate-500">Waiting for schedule</span>
+                        <span className="text-xs font-medium text-slate-500 px-2">
+                          Waiting for trigger
+                        </span>
                       ) : c.conditions?.status === "error" ? (
-                        <span className="text-sm text-amber-600 dark:text-amber-400">Configuration error — edit and reschedule</span>
-                      ) : !c.active ? (
-                        <UptoButton variant="ghost" onClick={() => handleLaunch(c.id)}>Schedule</UptoButton>
-                      ) : (
+                        <span className="text-xs font-medium text-rose-500 px-2">
+                          Needs Reconfiguration
+                        </span>
+                      ) : !c.active &&
+                        c.conditions?.status !== "completed" &&
+                        c.conditions?.status !== "cancelled" ? (
+                        <UptoButton
+                          variant="secondary"
+                          className="text-xs h-8 px-2.5 text-teal-600 hover:text-teal-700"
+                          onClick={() => handleLaunch(c.id)}
+                        >
+                          <Play className="h-3.5 w-3.5 mr-1" /> Schedule
+                        </UptoButton>
+                      ) : c.active ? (
                         <>
-                          <UptoButton variant="secondary" onClick={() => handlePause(c.id)}>Pause</UptoButton>
-                          <UptoButton variant="secondary" onClick={() => handleStop(c.id)}>Stop</UptoButton>
+                          <UptoButton
+                            variant="secondary"
+                            className="text-xs h-8 px-2.5"
+                            onClick={() => handlePause(c.id)}
+                          >
+                            <Pause className="h-3.5 w-3.5 mr-1 text-amber-500" /> Pause
+                          </UptoButton>
+                          <UptoButton
+                            variant="secondary"
+                            className="text-xs h-8 px-2.5"
+                            onClick={() => handleStop(c.id)}
+                          >
+                            <Square className="h-3 w-3 mr-1 text-rose-500" /> Stop
+                          </UptoButton>
                         </>
-                      )}
-                      <UptoButton variant="ghost" onClick={() => toggleLeads(c.id)}>
-                        {c.conditions?.status === "scheduled" && !c.active
-                          ? expandedId === c.id ? "Hide Expected Leads" : "View Expected Leads"
-                          : expandedId === c.id ? "Hide Leads" : "View Leads"}
+                      ) : null}
+
+                      <UptoButton
+                        variant="ghost"
+                        className="text-xs h-8 px-2.5"
+                        onClick={() => toggleLeads(c.id)}
+                      >
+                        {expandedId === c.id ? (
+                          <>
+                            Hide Leads <ChevronUp className="h-3.5 w-3.5 ml-1" />
+                          </>
+                        ) : (
+                          <>
+                            View Leads <ChevronDown className="h-3.5 w-3.5 ml-1" />
+                          </>
+                        )}
                       </UptoButton>
-                      <UptoButton variant="ghost" onClick={() => handleEdit(c)}>Edit</UptoButton>
-                      <UptoButton variant="danger" onClick={() => handleDelete(c.id)}>Delete</UptoButton>
+
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(c)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-teal-600 dark:hover:text-teal-400 hover:border-teal-500 transition-colors"
+                        title="Edit Campaign"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(c.id)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 hover:border-rose-500 transition-colors"
+                        title="Delete Campaign"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </div>
 
                   {c.conditions?.status === "error" && c.conditions?.lastError && (
-                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20 p-3 text-xs">
-                      <div className="font-semibold text-amber-800 dark:text-amber-300">Campaign activation error</div>
-                      <div className="mt-1 text-amber-700 dark:text-amber-400">{c.conditions.lastError}</div>
+                    <div className="mt-3.5 rounded-xl border border-rose-200 bg-rose-50/80 dark:border-rose-900/50 dark:bg-rose-950/20 p-3 text-xs flex items-start gap-2 text-rose-700 dark:text-rose-300">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-rose-500 mt-0.5" />
+                      <div>
+                        <span className="font-semibold">Activation error: </span>
+                        <span>{c.conditions.lastError}</span>
+                      </div>
                     </div>
                   )}
 
-                  {expandedId === c.id && c.conditions?.status === "scheduled" && !c.active && (
-                    <div className="mt-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3">
-                      <div className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Expected leads</div>
-                      {c.expectedLeadsPreview?.length ? (
-                        <div className="space-y-2">
-                          {c.expectedLeadsPreview.map((lead) => (
-                            <div key={lead.id} className="grid grid-cols-1 sm:grid-cols-4 gap-1 text-xs">
-                              <span className="font-medium">{lead.name || "—"}</span>
-                              <span>{lead.email || "—"}</span>
-                              <span>{lead.companyName || "—"}</span>
-                              <UptoBadge>{lead.status || "—"}</UptoBadge>
-                            </div>
-                          ))}
-                        </div>
-                      ) : <div className="text-xs text-slate-500">No matching leads currently.</div>}
-                    </div>
-                  )}
-
+                  {/* Leads Progress Drawer */}
                   {expandedId === c.id && !(c.conditions?.status === "scheduled" && !c.active) && (
-                    <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-                      {loadingLeads ? <UptoSpinner /> : leadsByCampaign[c.id]?.length ? (
-                        <div className="space-y-1">
+                    <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-4">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-3 flex items-center justify-between">
+                        <span>Enrolled Leads Progress</span>
+                        <span className="text-[11px] font-normal text-slate-500">
+                          Live 2-step progress tracking
+                        </span>
+                      </h4>
+
+                      {loadingLeads ? (
+                        <div className="py-4">
+                          <UptoSpinner />
+                        </div>
+                      ) : leadsByCampaign[c.id]?.length ? (
+                        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                           {leadsByCampaign[c.id].map((l) => (
-                            <div key={l.enrollmentId} className="flex flex-wrap items-center justify-between gap-2 text-xs py-1">
-                              <span>{l.name || "—"} · {l.email}</span>
-                              <span className="text-slate-500">{l.companyName || "—"}</span>
-                              <UptoBadge>{l.enrollmentStatus}</UptoBadge>
-                              <span className="text-slate-400">
-                                {l.enrollmentStatus === "COMPLETED"
-                                  ? `Step ${l.totalSteps}/${l.totalSteps}`
-                                  : `Step ${l.currentStep + 1}/${l.totalSteps}`}
-                              </span>
+                            <div
+                              key={l.enrollmentId}
+                              className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 text-xs"
+                            >
+                              <div className="min-w-0">
+                                <p className="font-semibold text-slate-900 dark:text-white truncate">
+                                  {l.name || "—"}{" "}
+                                  <span className="font-normal text-slate-500">({l.email})</span>
+                                </p>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                  {l.companyName || "No Company"}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2.5">
+                                <UptoBadge
+                                  tone={
+                                    l.enrollmentStatus === "COMPLETED"
+                                      ? "success"
+                                      : l.enrollmentStatus === "FAILED"
+                                      ? "danger"
+                                      : "default"
+                                  }
+                                >
+                                  {l.enrollmentStatus}
+                                </UptoBadge>
+
+                                <span
+                                  className={`px-2 py-0.5 rounded-md text-[11px] font-mono font-semibold ${
+                                    l.enrollmentStatus === "COMPLETED"
+                                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                      : "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20"
+                                  }`}
+                                >
+                                  {l.enrollmentStatus === "COMPLETED" ? "Step 2/2" : "Step 1/2"}
+                                </span>
+                              </div>
                             </div>
                           ))}
                         </div>
-                      ) : <div className="text-xs text-slate-500">No leads enrolled yet.</div>}
+                      ) : (
+                        <p className="text-xs text-slate-500">No leads have been processed yet.</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -635,190 +734,58 @@ const Campaigns = () => {
             </div>
           )}
         </UptoCard>
-      )}
+      </div>
 
-      {showStudio && (
-        <>
-          {!loading && !error && items.length === 0 && (
-            <div className="mb-3 mt-2 rounded-lg border border-teal-100 bg-teal-50/60 px-3 py-2.5 dark:border-teal-900 dark:bg-teal-950/20">
-              <h2 className="text-sm font-semibold">Create your first campaign using the form below</h2>
-              <p className="mt-1 text-xs text-slate-500">Define your audience, personalize your email, and schedule your campaign.</p>
-            </div>
-          )}
-          <CampaignStudio onClose={() => setShowStudio(false)} onSaved={() => load()} />
-        </>
-      )}
-
+      {/* Edit modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <form onSubmit={handleCreate} className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">{editingId ? "Edit campaign" : "New campaign"}</h3>
-            <div className="space-y-3">
-              <UptoInput label="Name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} required />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <form
+            onSubmit={handleCreate}
+            className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800 shadow-xl"
+          >
+            <h3 className={`text-lg font-bold mb-4 ${s.heading}`}>
+              {editingId ? "Edit campaign" : "New campaign"}
+            </h3>
+
+            <div className="space-y-4">
+              <UptoInput
+                label="Campaign Name"
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                required
+              />
+
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Target Audience</label>
-                <select className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={typeof draft.audience === "string" ? (draft.audience === "all" ? "all" : "all") : draft.audience?.type || "all"} onChange={(e) => handleAudienceTypeChange(e.target.value)}>
-                  <option value="all">All Leads</option><option value="status">By Status</option><option value="tag">By Tag</option><option value="segment">By Saved Segment</option><option value="score">By Score</option>
+                <label className={`text-sm font-medium ${s.body}`}>Target Audience</label>
+                <select
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  value={typeof draft.audience === "string" ? "all" : draft.audience?.type || "all"}
+                  onChange={(e) => handleAudienceTypeChange(e.target.value)}
+                >
+                  <option value="all">All Leads</option>
+                  <option value="status">By Status</option>
+                  <option value="tag">By Tag</option>
+                  <option value="segment">By Saved Segment</option>
                 </select>
-
-                {typeof draft.audience === "object" && draft.audience?.type === "tag" && (
-                  <div className="mt-2">
-                    <label className="text-xs text-slate-500 mb-1 block">Select Tag</label>
-                    {tags.length === 0 ? <div className="text-xs text-amber-600 dark:text-amber-400">No tags available. Please create tags first in Leads.</div> : (
-                      <select className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={draft.audience?.tagId || ""} onChange={(e) => setDraft({ ...draft, audience: { type: "tag", tagId: Number(e.target.value) } })}>
-                        <option value="">-- Select Tag --</option>{tags.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                      </select>
-                    )}
-                  </div>
-                )}
-
-                {typeof draft.audience === "object" && draft.audience?.type === "score" && (
-                  <div className="mt-2 space-y-3">
-                    <label className="text-xs text-slate-500 block">Score condition</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="min-w-0">
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Operator</label>
-                        <select className="w-full min-w-0 h-[42px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={draft.audience?.operator || "gte"} onChange={(e) => setDraft({ ...draft, audience: { ...draft.audience, operator: e.target.value } })}>
-                          <option value="gt">&gt; Greater than</option><option value="gte">≥ Greater than or equal</option><option value="lt">&lt; Less than</option><option value="lte">≤ Less than or equal</option><option value="between">Between</option>
-                        </select>
-                      </div>
-                      <div className="min-w-0">
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{draft.audience?.operator === "between" ? "Minimum" : "Score"}</label>
-                        <input type="number" min="0" className="w-full min-w-0 h-[42px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={draft.audience?.operator === "between" ? (draft.audience?.min ?? "") : (draft.audience?.value ?? "")} onChange={(e) => {
-                          const value = e.target.value === "" ? "" : Number(e.target.value);
-                          setDraft({ ...draft, audience: draft.audience?.operator === "between" ? { ...draft.audience, min: value } : { ...draft.audience, value } });
-                        }} />
-                      </div>
-                    </div>
-                    {draft.audience?.operator === "between" && <UptoInput label="Maximum" type="number" min="0" value={draft.audience?.max ?? ""} onChange={(e) => setDraft({ ...draft, audience: { ...draft.audience, max: e.target.value === "" ? "" : Number(e.target.value) } })} />}
-                    <div className="border-t border-slate-200 dark:border-slate-700 pt-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs text-slate-500 block">Additional conditions (AND)</label>
-                        <button type="button" className="text-xs text-blue-600 dark:text-blue-400" onClick={() => setDraft({ ...draft, audience: { ...draft.audience, conditions: [...(draft.audience?.conditions || []), { field: "source", operator: "contains", value: "" }] } })}>+ Add condition</button>
-                      </div>
-                      {(draft.audience?.conditions || []).map((cond, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <select className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-sm" value={cond.field} onChange={(e) => {
-                            const conditions = [...draft.audience.conditions]; conditions[idx] = { ...conditions[idx], field: e.target.value, operator: "contains", value: "" }; setDraft({ ...draft, audience: { ...draft.audience, conditions } });
-                          }}>
-                            <option value="source">Source</option><option value="industry">Industry</option><option value="companySize">Company Size</option><option value="jobTitle">Job Title</option>
-                          </select>
-                          <select className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-sm" value={cond.operator || "contains"} onChange={(e) => {
-                            const conditions = [...draft.audience.conditions]; conditions[idx] = { ...conditions[idx], operator: e.target.value }; setDraft({ ...draft, audience: { ...draft.audience, conditions } });
-                          }}>
-                            <option value="equals">=</option><option value="not_equals">≠</option><option value="contains">contains</option><option value="starts_with">starts with</option><option value="ends_with">ends with</option>
-                          </select>
-                          <input className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-sm" placeholder={cond.field === "source" ? "e.g. LinkedIn, Website" : cond.field === "industry" ? "e.g. Fintech, IT" : cond.field === "companySize" ? "e.g. 11-50, 500+" : "e.g. Founder, CTO"} value={cond.value || ""} onChange={(e) => {
-                            const conditions = [...draft.audience.conditions]; conditions[idx] = { ...conditions[idx], value: e.target.value }; setDraft({ ...draft, audience: { ...draft.audience, conditions } });
-                          }} />
-                          <button type="button" className="text-red-500 text-sm px-2" onClick={() => setDraft({ ...draft, audience: { ...draft.audience, conditions: draft.audience.conditions.filter((_, i) => i !== idx) } })}>✕</button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {typeof draft.audience === "object" && draft.audience?.type === "status" && (
-                  <div className="mt-2">
-                    <label className="text-xs text-slate-500 mb-1 block">Select Lead Status</label>
-                    <select className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-sm" value={draft.audience?.status || "new"} onChange={(e) => setDraft({ ...draft, audience: { type: "status", status: e.target.value } })}>
-                      {LEAD_STATUS_OPTIONS.map((st) => <option key={st.value} value={st.value}>{st.label}</option>)}
-                    </select>
-                  </div>
-                )}
-
-                {typeof draft.audience === "object" && draft.audience?.type === "segment" && (
-                  <div className="mt-2 space-y-2">
-                    <label className="text-xs text-slate-500 mb-1 block">Select Saved Segment</label>
-                    {segments.length === 0 ? <div className="text-xs text-amber-600 dark:text-amber-400">No lead segments saved yet.</div> : (
-                      <select className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-sm" value={draft.audience?.savedSearchId || ""} onChange={(e) => setDraft({ ...draft, audience: { type: "segment", savedSearchId: Number(e.target.value) } })}>
-                        <option value="">-- Choose Segment --</option>{segments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                      </select>
-                    )}
-                    <button type="button" className="text-xs text-blue-600 dark:text-blue-400" onClick={() => setShowSegmentBuilder((v) => !v)}>{showSegmentBuilder ? "Cancel new segment" : "+ Create new segment"}</button>
-                    {showSegmentBuilder && (
-                      <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-2">
-                        <input className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-sm" placeholder="Segment name (e.g. Hot & Qualified)" value={segmentDraft.name} onChange={(e) => setSegmentDraft({ ...segmentDraft, name: e.target.value })} />
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs text-slate-500">Conditions</label>
-                          <div className="flex items-center gap-2">
-                            <select className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 text-xs" value={segmentDraft.logic} onChange={(e) => setSegmentDraft({ ...segmentDraft, logic: e.target.value })}><option value="AND">Match ALL (AND)</option><option value="OR">Match ANY (OR)</option></select>
-                            <button type="button" className="text-xs text-blue-600 dark:text-blue-400" onClick={() => setSegmentDraft({ ...segmentDraft, conditions: [...segmentDraft.conditions, { field: "source", operator: "contains", value: "" }] })}>+ Add</button>
-                          </div>
-                        </div>
-                        {segmentDraft.conditions.map((cond, idx) => (
-                          <div key={idx} className="flex items-center gap-1">
-                            <select className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1.5 text-xs" value={cond.field} onChange={(e) => {
-                              const conditions = [...segmentDraft.conditions]; conditions[idx] = { ...conditions[idx], field: e.target.value, operator: "contains", value: "" }; setSegmentDraft({ ...segmentDraft, conditions });
-                            }}>
-                              <option value="source">Source</option><option value="industry">Industry</option><option value="companySize">Company Size</option><option value="jobTitle">Job Title</option>
-                            </select>
-                            <select className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1.5 text-xs" value={cond.operator || "contains"} onChange={(e) => {
-                              const conditions = [...segmentDraft.conditions]; conditions[idx] = { ...conditions[idx], operator: e.target.value }; setSegmentDraft({ ...segmentDraft, conditions });
-                            }}>
-                              <option value="equals">=</option><option value="not_equals">≠</option><option value="contains">contains</option><option value="starts_with">starts with</option><option value="ends_with">ends with</option>
-                            </select>
-                            <input className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1.5 text-xs" placeholder={cond.field === "source" ? "e.g. LinkedIn, Website" : cond.field === "industry" ? "e.g. Fintech, Healthcare" : cond.field === "companySize" ? "e.g. 11-50, 500+" : "e.g. Founder, CTO"} value={cond.value || ""} onChange={(e) => {
-                              const conditions = [...segmentDraft.conditions]; conditions[idx] = { ...conditions[idx], value: e.target.value }; setSegmentDraft({ ...segmentDraft, conditions });
-                            }} />
-                            <button type="button" className="text-red-500 text-xs px-1" onClick={() => setSegmentDraft({ ...segmentDraft, conditions: segmentDraft.conditions.filter((_, i) => i !== idx) })}>✕</button>
-                          </div>
-                        ))}
-                        <UptoButton type="button" onClick={async () => {
-                          if (!segmentDraft.name.trim()) { toast.error("Please name the segment"); return; }
-                          if (segmentDraft.conditions.length === 0) { toast.error("Add at least one condition"); return; }
-                          try {
-                            const saved = await savedSearchService.create({ name: segmentDraft.name, resource: "leads", filters: { logic: segmentDraft.logic, conditions: segmentDraft.conditions } });
-                            toast.success("Segment created");
-                            const newSeg = saved?.data || saved;
-                            setSegments((prev) => [...prev, newSeg]);
-                            setDraft({ ...draft, audience: { type: "segment", savedSearchId: newSeg.id } });
-                            setShowSegmentBuilder(false);
-                            setSegmentDraft({ name: "", logic: "AND", conditions: [] });
-                          } catch (err) { toast.error(err?.message || "Failed to create segment"); }
-                        }}>Save Segment</UptoButton>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
-              <UptoInput label="Campaign Start Date" type="date" min={new Date().toISOString().slice(0, 10)} value={(draft.schedule || "").slice(0, 10)} onChange={(e) => setDraft({ ...draft, schedule: e.target.value })} required />
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium">Campaign Steps</h4>
-                  <UptoButton type="button" variant="ghost" onClick={() => setDraft({ ...draft, steps: [...draft.steps, { day: draft.steps.length === 0 ? 0 : draft.steps[draft.steps.length - 1].day + 1, subject: "", body: "", time: "10:00" }] })}>+ Add Step</UptoButton>
-                </div>
-                {draft.steps.map((step, index) => (
-                  <div key={index} className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h5 className="font-medium">Step {index + 1}</h5>
-                      {draft.steps.length > 1 && <UptoButton type="button" variant="danger" onClick={() => setDraft({ ...draft, steps: draft.steps.filter((_, i) => i !== index) })}>Remove</UptoButton>}
-                    </div>
-                    <UptoInput label="Day" type="number" min="0" value={step.day} onChange={(e) => {
-                      const steps = [...draft.steps]; steps[index] = { ...steps[index], day: Number(e.target.value) }; setDraft({ ...draft, steps });
-                    }} required />
-                    <UptoInput label="Time" type="time" value={step.time || "10:00"} onChange={(e) => {
-                      const steps = [...draft.steps]; steps[index] = { ...steps[index], time: e.target.value }; setDraft({ ...draft, steps });
-                    }} required />
-                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3 space-y-3">
-                      <div><div className="font-medium">AI Email Studio</div><div className="text-xs text-slate-500 mt-1">Generate two email drafts to review and select. Campaign sending can still personalize emails for each matching lead.</div></div>
-                      <UptoButton type="button" disabled={copyLoading} onClick={handleGenerateMails}>{copyLoading ? "Generating..." : "Generate Mails"}</UptoButton>
-                      {copyVariants.map((mail, mailIndex) => (
-                        <div key={mail.id || mailIndex} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 space-y-2">
-                          <div className="font-medium">Draft {mailIndex + 1}</div><div className="text-sm font-medium break-words">{mail.subject}</div><div className="text-sm whitespace-pre-wrap break-words">{mail.body}</div>
-                          <UptoButton type="button" onClick={() => handleSelectMailDraft(mail)}>Use This Draft</UptoButton>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <UptoInput
+                label="Campaign Start Date"
+                type="date"
+                min={new Date().toISOString().slice(0, 10)}
+                value={(draft.schedule || "").slice(0, 10)}
+                onChange={(e) => setDraft({ ...draft, schedule: e.target.value })}
+                required
+              />
             </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <UptoButton type="button" variant="ghost" onClick={closeEditor}>Cancel</UptoButton>
-              <UptoButton type="submit">{editingId ? "Save Changes" : "Create"}</UptoButton>
+
+            <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800 pt-4">
+              <UptoButton type="button" variant="ghost" onClick={closeEditor}>
+                Cancel
+              </UptoButton>
+              <UptoButton type="submit">
+                {editingId ? "Save Changes" : "Create"}
+              </UptoButton>
             </div>
           </form>
         </div>
