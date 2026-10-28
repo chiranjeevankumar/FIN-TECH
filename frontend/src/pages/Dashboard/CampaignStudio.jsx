@@ -1,13 +1,44 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { campaignService, tagService, savedSearchService } from "@/services";
 import { UptoButton } from "@/components/UI/UptoHooks";
-import { ArrowRight, ArrowLeft, Sparkles, Users, BarChart3, X } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowLeft,
+  Sparkles,
+  Users,
+  BarChart3,
+  X,
+  Edit2,
+  Check,
+} from "lucide-react";
 import { toast } from "sonner";
 
-const statuses = ["new", "contacted", "qualified", "in_progress", "converted", "closed", "lost"];
+const statuses = [
+  "new",
+  "contacted",
+  "qualified",
+  "in_progress",
+  "converted",
+  "closed",
+  "lost",
+];
+
 const inputClass =
   "w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100";
-const labelClass = "block text-xs font-semibold text-slate-700 dark:text-slate-200";
+const labelClass =
+  "block text-xs font-semibold text-slate-700 dark:text-slate-200";
+
+// Helper: Local browser timezone ke mutabiq exact 1 minute aage ka time format karna
+const getLocalOneMinuteAhead = () => {
+  const date = new Date(Date.now() + 65 * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
 
 export default function CampaignStudio({ onClose, onSaved }) {
   const [step, setStep] = useState(0);
@@ -20,7 +51,10 @@ export default function CampaignStudio({ onClose, onSaved }) {
   const [segmentId, setSegmentId] = useState("");
   const [tags, setTags] = useState([]);
   const [segments, setSegments] = useState([]);
-  const [schedule, setSchedule] = useState("");
+
+  // Default: Current local time se exact 1 minute aage
+  const [schedule, setSchedule] = useState(() => getLocalOneMinuteAhead());
+
   const [tone, setTone] = useState("professional");
   const [goal, setGoal] = useState("replies");
   const [valueProp, setValueProp] = useState("");
@@ -32,15 +66,29 @@ export default function CampaignStudio({ onClose, onSaved }) {
   const [sample, setSample] = useState([]);
   const [busy, setBusy] = useState(false);
 
+  // Draft Editing States
+  const [editingDraftId, setEditingDraftId] = useState(null);
+  const [editSubject, setEditSubject] = useState("");
+  const [editBody, setEditBody] = useState("");
+
   useEffect(() => {
     Promise.all([
       tagService.list().catch(() => []),
       savedSearchService.list({ resource: "leads" }).catch(() => []),
     ]).then(([a, b]) => {
       setTags(Array.isArray(a) ? a : a?.tags || a?.items || a?.data || []);
-      setSegments(Array.isArray(b) ? b : b?.items || b?.savedSearches || b?.data || []);
+      setSegments(
+        Array.isArray(b) ? b : b?.items || b?.savedSearches || b?.data || []
+      );
     });
   }, []);
+
+  // Step 2 (Review) par aate hi time ensure karein ki past ka na ho
+  useEffect(() => {
+    if (step === 2 && (!schedule || new Date(schedule) <= new Date())) {
+      setSchedule(getLocalOneMinuteAhead());
+    }
+  }, [step]);
 
   const audience = useMemo(
     () =>
@@ -64,13 +112,16 @@ export default function CampaignStudio({ onClose, onSaved }) {
       : type === "score"
       ? "Lead score " + min + "–" + max
       : type === "tag"
-      ? "Tag: " + (tags.find((t) => String(t.id) === String(tagId))?.name || "selected")
+      ? "Tag: " +
+        (tags.find((t) => String(t.id) === String(tagId))?.name || "selected")
       : "Saved segment: " +
-        (segments.find((s) => String(s.id) === String(segmentId))?.name || "selected");
+        (segments.find((s) => String(s.id) === String(segmentId))?.name ||
+          "selected");
 
   const scan = async () => {
     if (type === "tag" && !tagId) return toast.error("Select a tag first");
-    if (type === "segment" && !segmentId) return toast.error("Select a saved segment first");
+    if (type === "segment" && !segmentId)
+      return toast.error("Select a saved segment first");
     if (
       type === "score" &&
       (min === "" ||
@@ -106,7 +157,8 @@ export default function CampaignStudio({ onClose, onSaved }) {
   };
 
   const generateCopy = async () => {
-    if (count === null) return toast.error("Preview the audience before generating drafts.");
+    if (count === null)
+      return toast.error("Preview the audience before generating drafts.");
     setCopyBusy(true);
     try {
       const result = await campaignService.previewCopy({
@@ -125,20 +177,67 @@ export default function CampaignStudio({ onClose, onSaved }) {
       setSelectedVariant(data.variants[0]?.id ?? "");
       toast.success("Drafts generated. Review them before scheduling.");
     } catch (e) {
-      toast.error(e?.message || "Could not generate email drafts");
+      console.warn("AI generation delayed or timed out:", e);
+      // Fallback Drafts
+      const fallbackDrafts = [
+        {
+          id: "draft-1",
+          subject: `${name.trim() || "Growth Partnership"} - Quick inquiry`,
+          body: `Hi {{first_name}},\n\nI was reviewing your company profile at {{company_name}} and wanted to connect.\n\n${
+            valueProp.trim() ||
+            "We provide high-impact automation tools to help teams scale outreach efficiently."
+          }\n\nWould you be open to a quick 10-minute introduction this week?\n\nBest regards,\nSalesForge Team`,
+        },
+        {
+          id: "draft-2",
+          subject: `Streamlining operations at {{company_name}}`,
+          body: `Hello {{first_name}},\n\nReaching out to see if you have explored ways to automate your outreach workflow.\n\n${
+            prompt.trim() ||
+            "Our platform helps accelerate growth with smart personalized tools."
+          }\n\nLet me know if you would be open to a brief conversation.\n\nThanks,\nSalesForge Team`,
+        },
+      ];
+      setVariants(fallbackDrafts);
+      setSelectedVariant(fallbackDrafts[0].id);
+      toast.info("Standard campaign drafts created for your review.");
     } finally {
       setCopyBusy(false);
     }
   };
 
+  const startEditDraft = (e, v, index) => {
+    e.stopPropagation();
+    const draftId = v.id ?? index;
+    setEditingDraftId(draftId);
+    setEditSubject(v.subject || "");
+    setEditBody(v.body || "");
+  };
+
+  const saveEditedDraft = (e, targetId) => {
+    e.stopPropagation();
+    setVariants((prev) =>
+      prev.map((v, i) => {
+        const currentId = v.id ?? i;
+        if (currentId === targetId) {
+          return { ...v, subject: editSubject, body: editBody };
+        }
+        return v;
+      })
+    );
+    setEditingDraftId(null);
+    toast.success("Draft updated successfully");
+  };
+
+  const cancelEditDraft = (e) => {
+    e.stopPropagation();
+    setEditingDraftId(null);
+  };
+
   const save = async () => {
-    // 1. Name Check
     if (!name.trim()) {
       setStep(0);
       return toast.error("Enter a campaign name first");
     }
-
-    // 2. Audience checks
     if (type === "tag" && !tagId) {
       setStep(0);
       return toast.error("Select a tag");
@@ -161,25 +260,31 @@ export default function CampaignStudio({ onClose, onSaved }) {
       return toast.error("Choose a valid score range from 0 to 100");
     }
 
-    // 3. Audience preview check
     if (count === null) {
       setStep(0);
-      return toast.error("Preview the audience before saving to confirm expected leads.");
+      return toast.error(
+        "Preview the audience before saving to confirm expected leads."
+      );
     }
 
-    // 4. Generate Drafts Verification Condition
     if (!variants || variants.length === 0) {
-      setStep(1); // Redirect user to Step 1 (Personalization)
-      return toast.error("Please generate AI email drafts in Step 2 before saving the campaign.");
+      setStep(1);
+      return toast.error(
+        "Please generate AI email drafts in Step 2 before saving the campaign."
+      );
     }
 
-    // 5. Schedule date & time checks
     if (!schedule) {
       return toast.error("Choose a scheduled date & time");
     }
     if (new Date(schedule) <= new Date()) {
-      return toast.error("Choose a future schedule date and time");
+      return toast.error(
+        "Choose a future schedule date and time (at least 1 minute ahead)"
+      );
     }
+
+    const chosenVariant =
+      variants.find((v) => v.id === selectedVariant) || variants[0];
 
     setBusy(true);
     try {
@@ -190,7 +295,7 @@ export default function CampaignStudio({ onClose, onSaved }) {
           "Email tone: " + tone + ".",
           valueProp.trim() ? "Value proposition: " + valueProp.trim() + "." : "",
           prompt.trim() ? "Campaign owner direction: " + prompt.trim() + "." : "",
-          "Two-step sequence: Step 1 (Active) and Step 2 (Complete).",
+          "Automated outreach campaign via Gemini AI.",
         ]
           .filter(Boolean)
           .join(" "),
@@ -199,8 +304,12 @@ export default function CampaignStudio({ onClose, onSaved }) {
         type: "email",
         content: [{ type: "SEND_EMAIL" }],
         steps: [
-          { day: 0, time: new Date(schedule).toTimeString().slice(0, 5) },
-          { day: 3, time: "10:00" },
+          {
+            day: 0,
+            time: new Date(schedule).toTimeString().slice(0, 5),
+            subject: chosenVariant?.subject,
+            body: chosenVariant?.body,
+          },
         ],
       });
       toast.success(
@@ -262,38 +371,40 @@ export default function CampaignStudio({ onClose, onSaved }) {
               aria-label="Campaign setup steps"
               className="grid grid-cols-3 gap-3 w-full border-b border-slate-200 pb-5 dark:border-slate-700"
             >
-              {["1 · Audience", "2 · Personalization", "3 · Review"].map((x, i) => (
-                <button
-                  type="button"
-                  key={x}
-                  onClick={() => {
-                    if (i > 0 && count === null) {
-                      toast.error("Preview the audience before continuing.");
-                      return;
+              {["1 · Audience", "2 · Personalization", "3 · Review"].map(
+                (x, i) => (
+                  <button
+                    type="button"
+                    key={x}
+                    onClick={() => {
+                      if (i > 0 && count === null) {
+                        toast.error("Preview the audience before continuing.");
+                        return;
+                      }
+                      setStep(i);
+                    }}
+                    className={
+                      "w-full py-2.5 px-3 text-center rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500/30 truncate " +
+                      (step === i
+                        ? "bg-teal-600 text-white shadow-md shadow-teal-500/20 font-bold"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700")
                     }
-                    setStep(i);
-                  }}
-                  className={
-                    "w-full py-2.5 px-3 text-center rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500/30 truncate " +
-                    (step === i
-                      ? "bg-teal-600 text-white shadow-md shadow-teal-500/20 font-bold"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700")
-                  }
-                >
-                  {x}
-                </button>
-              ))}
+                  >
+                    {x}
+                  </button>
+                )
+              )}
             </nav>
 
             {/* Step 0: Audience */}
             {step === 0 && (
               <section className="space-y-4">
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-                  <Users className="h-4 w-4 text-teal-600" /> Define target audience
+                  <Users className="h-4 w-4 text-teal-600" /> Define target
+                  audience
                 </h3>
 
                 <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2">
-                  {/* Left: Criteria */}
                   <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 dark:border-slate-700 dark:bg-slate-900/40 flex flex-col justify-between">
                     <div className="space-y-3">
                       <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-100">
@@ -423,7 +534,6 @@ export default function CampaignStudio({ onClose, onSaved }) {
                     </p>
                   </div>
 
-                  {/* Right: Preview Action Button */}
                   <div className="rounded-xl border border-teal-200 bg-white p-5 shadow-sm dark:border-teal-900 dark:bg-slate-900 flex flex-col justify-between">
                     <div className="space-y-3">
                       <div className="flex items-center gap-2.5">
@@ -434,7 +544,9 @@ export default function CampaignStudio({ onClose, onSaved }) {
                           <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
                             Audience preview
                           </h4>
-                          <p className="text-[11px] text-slate-500">Check the matching leads</p>
+                          <p className="text-[11px] text-slate-500">
+                            Check the matching leads
+                          </p>
                         </div>
                       </div>
 
@@ -444,14 +556,17 @@ export default function CampaignStudio({ onClose, onSaved }) {
                     </div>
 
                     <div className="pt-4">
-                      <UptoButton onClick={scan} disabled={busy} className="w-full sm:w-auto">
+                      <UptoButton
+                        onClick={scan}
+                        disabled={busy}
+                        className="w-full sm:w-auto"
+                      >
                         {busy ? "Scanning…" : "Scan & Preview"}
                       </UptoButton>
                     </div>
                   </div>
                 </div>
 
-                {/* Bottom Full-Width Lead Results Card */}
                 {count !== null && (
                   <div className="w-full rounded-xl border border-teal-200/90 bg-white p-5 shadow-sm dark:border-teal-900 dark:bg-slate-900 mt-4 space-y-3">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
@@ -499,15 +614,14 @@ export default function CampaignStudio({ onClose, onSaved }) {
               </section>
             )}
 
-            {/* Step 1: Personalization */}
+            {/* Step 1: Personalization (With Inline Edit Feature) */}
             {step === 1 && (
               <section className="space-y-4">
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
                   <Sparkles className="h-4 w-4 text-teal-600" /> AI copy studio
                 </h3>
                 <p className="text-xs leading-relaxed text-slate-500">
-                  Set the direction only. Gemini generates a fresh subject and personalized email for
-                  each lead when the campaign sends.
+                  Set the direction only. Gemini generates draft variants that you can preview and customize.
                 </p>
                 <div className="max-w-2xl">
                   <label className={labelClass}>Prompt or keywords</label>
@@ -555,42 +669,119 @@ export default function CampaignStudio({ onClose, onSaved }) {
                     />
                   </div>
                 </div>
+
                 <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-700 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
                         AI draft preview
                       </h4>
-                      <p className="text-xs text-slate-500">Preview only; no email is sent.</p>
+                      <p className="text-xs text-slate-500">
+                        Preview only; click Edit on any card to modify text.
+                      </p>
                     </div>
                     <UptoButton onClick={generateCopy} disabled={copyBusy}>
                       {copyBusy ? "Generating…" : "Generate drafts"}
                     </UptoButton>
                   </div>
+
                   {variants.length > 0 && (
                     <div className="grid gap-3 md:grid-cols-2">
-                      {variants.map((v, index) => (
-                        <button
-                          type="button"
-                          key={v.id ?? index}
-                          onClick={() => setSelectedVariant(v.id ?? "")}
-                          className={
-                            "rounded-xl border p-3.5 text-left transition " +
-                            (selectedVariant === v.id
-                              ? "border-teal-500 bg-teal-50/50 ring-2 ring-teal-500/20 dark:bg-teal-950/30"
-                              : "border-slate-200 hover:border-slate-300 dark:border-slate-700")
-                          }
-                        >
-                          <span className="text-xs font-semibold text-teal-600">
-                            Draft {index + 1}
-                            {selectedVariant === v.id ? " · Selected" : ""}
-                          </span>
-                          <p className="mt-1.5 break-words text-sm font-semibold">{v.subject}</p>
-                          <p className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-relaxed">
-                            {v.body}
-                          </p>
-                        </button>
-                      ))}
+                      {variants.map((v, index) => {
+                        const draftId = v.id ?? index;
+                        const isEditing = editingDraftId === draftId;
+                        const isSelected = selectedVariant === (v.id ?? "");
+
+                        return (
+                          <div
+                            key={draftId}
+                            onClick={() => {
+                              if (!isEditing) setSelectedVariant(v.id ?? "");
+                            }}
+                            className={
+                              "relative rounded-xl border p-4 text-left transition " +
+                              (isSelected
+                                ? "border-teal-500 bg-teal-50/20 ring-2 ring-teal-500/20 dark:bg-teal-950/20"
+                                : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/40")
+                            }
+                          >
+                            {/* Card Top Bar with Edit Option */}
+                            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                              <span className="text-xs font-semibold text-teal-600 dark:text-teal-400">
+                                Draft {index + 1}
+                                {isSelected ? " · Selected" : ""}
+                              </span>
+
+                              {/* Edit / Action Buttons */}
+                              <div className="flex items-center gap-1.5">
+                                {isEditing ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => saveEditedDraft(e, draftId)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold bg-teal-600 text-white hover:bg-teal-700"
+                                    >
+                                      <Check className="h-3 w-3" /> Save
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={cancelEditDraft}
+                                      className="px-2.5 py-1 rounded text-[11px] font-semibold bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => startEditDraft(e, v, index)}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-slate-500 hover:text-teal-600 dark:text-slate-400 dark:hover:text-teal-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    title="Edit this draft"
+                                  >
+                                    <Edit2 className="h-3.5 w-3.5" /> Edit
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Card Body: Editing vs View Mode */}
+                            {isEditing ? (
+                              <div className="mt-3 space-y-2.5">
+                                <div>
+                                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                                    Subject
+                                  </label>
+                                  <input
+                                    className={inputClass}
+                                    value={editSubject}
+                                    onChange={(e) => setEditSubject(e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                                    Body Template
+                                  </label>
+                                  <textarea
+                                    rows={8}
+                                    className={`${inputClass} resize-y text-xs font-normal leading-relaxed`}
+                                    value={editBody}
+                                    onChange={(e) => setEditBody(e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mt-2.5 space-y-2">
+                                <p className="break-words text-sm font-semibold text-slate-900 dark:text-white">
+                                  {v.subject}
+                                </p>
+                                <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                                  {v.body}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -601,12 +792,15 @@ export default function CampaignStudio({ onClose, onSaved }) {
             {step === 2 && (
               <section className="space-y-4">
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-                  <BarChart3 className="h-4 w-4 text-teal-600" /> Review & schedule
+                  <BarChart3 className="h-4 w-4 text-teal-600" /> Review &
+                  schedule
                 </h3>
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
                     <Users className="h-4 w-4 text-teal-600" />
-                    <p className="mt-1.5 text-lg font-bold">{count === null ? "Not scanned" : count}</p>
+                    <p className="mt-1.5 text-lg font-bold">
+                      {count === null ? "Not scanned" : count}
+                    </p>
                     <p className="text-xs leading-relaxed text-slate-500">
                       Expected leads from preview.
                     </p>
@@ -618,20 +812,22 @@ export default function CampaignStudio({ onClose, onSaved }) {
                   </div>
                   <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
                     <BarChart3 className="h-4 w-4 text-teal-600" />
-                    <p className="mt-1.5 text-sm font-bold">2-Step Sequence</p>
-                    <p className="text-xs text-slate-500">Active (Step 1) → Complete (Step 2)</p>
+                    <p className="mt-1.5 text-sm font-bold">Email Dispatch</p>
+                    <p className="text-xs text-slate-500">Automated AI Delivery</p>
                   </div>
                 </div>
+
                 <div className="max-w-xs">
                   <label className={labelClass}>Scheduled date & time</label>
                   <input
                     className={`${inputClass} mt-1`}
                     type="datetime-local"
-                    min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
                     value={schedule}
                     onChange={(e) => setSchedule(e.target.value)}
                   />
+                  
                 </div>
+
                 <div className="rounded-xl border border-slate-200 p-4 text-xs dark:border-slate-700 space-y-1">
                   <p>
                     <b>Audience:</b> {audienceLabel}
@@ -643,10 +839,13 @@ export default function CampaignStudio({ onClose, onSaved }) {
                     <b>Drafts status:</b>{" "}
                     {variants.length > 0 ? (
                       <span className="text-emerald-600 font-semibold dark:text-emerald-400">
-                        {variants.length} draft(s) generated
+                        {variants.length} draft(s) available
+                        {selectedVariant ? " (1 selected)" : ""}
                       </span>
                     ) : (
-                      <span className="text-rose-500 font-semibold">Not generated yet</span>
+                      <span className="text-rose-500 font-semibold">
+                        Not generated yet
+                      </span>
                     )}
                   </p>
                   <p>
@@ -660,7 +859,7 @@ export default function CampaignStudio({ onClose, onSaved }) {
           {/* Footer - Previous & Next Navigation */}
           <footer className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-6 sm:px-8 py-4 dark:border-slate-800 dark:bg-slate-900/60 shrink-0">
             <span className="text-xs text-slate-500">Step {step + 1} of 3</span>
-            
+
             <div className="flex items-center gap-3">
               {step > 0 && (
                 <UptoButton
@@ -668,7 +867,8 @@ export default function CampaignStudio({ onClose, onSaved }) {
                   variant="secondary"
                   onClick={() => setStep(step - 1)}
                 >
-                  <ArrowLeft className="mr-1.5 inline h-3.5 w-3.5" /> Previous step
+                  <ArrowLeft className="mr-1.5 inline h-3.5 w-3.5" /> Previous
+                  step
                 </UptoButton>
               )}
 

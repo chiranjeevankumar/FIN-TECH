@@ -72,10 +72,7 @@ const Campaigns = () => {
     name: "",
     audience: { type: "all" },
     schedule: "",
-    steps: [
-      { day: 0, subject: "", body: "", time: "10:00" },
-      { day: 3, subject: "", body: "", time: "10:00" },
-    ],
+    steps: [{ day: 0, subject: "", body: "", time: "10:00" }],
   });
 
   const loadMetaData = async () => {
@@ -129,8 +126,14 @@ const Campaigns = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Poll leads for running/completed campaigns
   useEffect(() => {
     if (expandedId === null) return;
+
+    const campaign = items.find((c) => c.id === expandedId);
+    if (!campaign || (campaign.conditions?.status === "scheduled" && !campaign.active)) {
+      return;
+    }
 
     let isMounted = true;
 
@@ -169,7 +172,7 @@ const Campaigns = () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [expandedId]);
+  }, [expandedId, items]);
 
   const handleAudienceTypeChange = (type) => {
     if (type === "all") {
@@ -229,10 +232,7 @@ const Campaigns = () => {
       name: "",
       audience: { type: "all" },
       schedule: "",
-      steps: [
-        { day: 0, subject: "", body: "", time: "10:00" },
-        { day: 3, subject: "", body: "", time: "10:00" },
-      ],
+      steps: [{ day: 0, subject: "", body: "", time: "10:00" }],
     });
   };
 
@@ -270,7 +270,7 @@ const Campaigns = () => {
         toast.success("Campaign updated");
       } else {
         await campaignService.create(payload);
-        toast.success("Campaign created with 2-step sequence");
+        toast.success("Campaign created");
       }
 
       closeEditor();
@@ -333,27 +333,41 @@ const Campaigns = () => {
     }
   };
 
+  // Fixed toggleLeads: Scheduled state me previewAudience se leads laata hai, running me actual getLeads se
   const toggleLeads = async (campaignId) => {
-    const campaign = items.find((item) => item.id === campaignId);
-    const isScheduled = campaign?.conditions?.status === "scheduled" && !campaign.active;
-
     if (expandedId === campaignId) {
       setExpandedId(null);
       return;
     }
 
+    const campaign = items.find((c) => c.id === campaignId);
     setExpandedId(campaignId);
-
-    if (isScheduled) return;
-
     setLoadingLeads(true);
+
     try {
-      const data = await campaignService.getLeads(campaignId);
-      setLeadsByCampaign((prev) => ({
-        ...prev,
-        [campaignId]: data?.leads || [],
-      }));
+      // Agar campaign scheduled hai, toh audience preview call karke expected leads display karein
+      if (campaign?.conditions?.status === "scheduled" && !campaign.active) {
+        const aud = campaign.conditions?.audience || { type: "all" };
+        const res = await campaignService.previewAudience(aud);
+        const data = res?.data ?? res;
+        const leadsList = (data?.sample || []).map((lead) => ({
+          ...lead,
+          enrollmentStatus: "SCHEDULED",
+        }));
+        setLeadsByCampaign((prev) => ({
+          ...prev,
+          [campaignId]: leadsList,
+        }));
+      } else {
+        // Running/Completed me DB sequence enrollments fetch karein
+        const data = await campaignService.getLeads(campaignId);
+        setLeadsByCampaign((prev) => ({
+          ...prev,
+          [campaignId]: data?.leads || [],
+        }));
+      }
     } catch (err) {
+      console.warn("Failed to load leads:", err);
       toast.error(err?.message || "Failed to load leads");
     } finally {
       setLoadingLeads(false);
@@ -380,10 +394,7 @@ const Campaigns = () => {
       schedule: toLocalDateTimeInput(campaign.conditions?.schedule),
       steps: campaign.conditions?.steps?.length
         ? campaign.conditions.steps
-        : [
-            { day: 0, subject: "", body: "", time: "10:00" },
-            { day: 3, subject: "", body: "", time: "10:00" },
-          ],
+        : [{ day: 0, subject: "", body: "", time: "10:00" }],
     });
 
     setShowCreate(true);
@@ -435,7 +446,6 @@ const Campaigns = () => {
 
   return (
     <UptoPage>
-      {/* Top Hero Header */}
       <UptoHero
         title="Campaigns"
         subtitle="Email and marketing automation."
@@ -458,12 +468,10 @@ const Campaigns = () => {
         }
       />
 
-      {/* Campaign Studio Popup Modal (opens on top centered) */}
       {showStudio && (
         <CampaignStudio onClose={() => setShowStudio(false)} onSaved={() => load()} />
       )}
 
-      {/* Campaign History Board */}
       <div className="w-full space-y-4">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/60 shadow-sm">
@@ -668,13 +676,15 @@ const Campaigns = () => {
                     </div>
                   )}
 
-                  {/* Leads Progress Drawer */}
-                  {expandedId === c.id && !(c.conditions?.status === "scheduled" && !c.active) && (
+                  {/* Leads Drawer: Ab scheduled campaign ke time par bhi audience list dikhegi */}
+                  {expandedId === c.id && (
                     <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-4">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-3 flex items-center justify-between">
-                        <span>Enrolled Leads Progress</span>
+                        <span>Campaign Leads</span>
                         <span className="text-[11px] font-normal text-slate-500">
-                          Live 2-step progress tracking
+                          {c.conditions?.status === "scheduled" && !c.active
+                            ? "Targeted audience leads (Scheduled)"
+                            : "Enrolled delivery status"}
                         </span>
                       </h4>
 
@@ -686,7 +696,7 @@ const Campaigns = () => {
                         <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                           {leadsByCampaign[c.id].map((l) => (
                             <div
-                              key={l.enrollmentId}
+                              key={l.enrollmentId || l.id}
                               className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 text-xs"
                             >
                               <div className="min-w-0">
@@ -701,31 +711,23 @@ const Campaigns = () => {
                               <div className="flex items-center gap-2.5">
                                 <UptoBadge
                                   tone={
-                                    l.enrollmentStatus === "COMPLETED"
+                                    (l.enrollmentStatus || "SCHEDULED") === "COMPLETED"
                                       ? "success"
-                                      : l.enrollmentStatus === "FAILED"
+                                      : (l.enrollmentStatus || "SCHEDULED") === "FAILED"
                                       ? "danger"
+                                      : (l.enrollmentStatus || "SCHEDULED") === "SCHEDULED"
+                                      ? "info"
                                       : "default"
                                   }
                                 >
-                                  {l.enrollmentStatus}
+                                  {l.enrollmentStatus || "SCHEDULED"}
                                 </UptoBadge>
-
-                                <span
-                                  className={`px-2 py-0.5 rounded-md text-[11px] font-mono font-semibold ${
-                                    l.enrollmentStatus === "COMPLETED"
-                                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                                      : "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20"
-                                  }`}
-                                >
-                                  {l.enrollmentStatus === "COMPLETED" ? "Step 2/2" : "Step 1/2"}
-                                </span>
                               </div>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <p className="text-xs text-slate-500">No leads have been processed yet.</p>
+                        <p className="text-xs text-slate-500">No leads found for this campaign.</p>
                       )}
                     </div>
                   )}
@@ -736,7 +738,6 @@ const Campaigns = () => {
         </UptoCard>
       </div>
 
-      {/* Edit modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <form
