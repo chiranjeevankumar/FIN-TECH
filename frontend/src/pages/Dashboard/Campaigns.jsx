@@ -56,6 +56,8 @@ const Campaigns = () => {
   const [editingId, setEditingId] = useState(null);
   const [tags, setTags] = useState([]);
   const [segments, setSegments] = useState([]);
+  const [optimization, setOptimization] = useState(null);
+  const [optimizationLoading, setOptimizationLoading] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [leadsByCampaign, setLeadsByCampaign] = useState({});
   const [loadingLeads, setLoadingLeads] = useState(false);
@@ -97,6 +99,18 @@ const Campaigns = () => {
     }
   };
 
+  const loadOptimization = async () => {
+    setOptimizationLoading(true);
+    try {
+      const result = await campaignService.optimization();
+      setOptimization(result);
+    } catch (e) {
+      console.error("Failed to load campaign optimization:", e);
+    } finally {
+      setOptimizationLoading(false);
+    }
+  };
+
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
@@ -118,6 +132,7 @@ const Campaigns = () => {
   useEffect(() => {
     load();
     loadMetaData();
+    loadOptimization();
 
     const interval = setInterval(() => {
       load(true);
@@ -473,6 +488,87 @@ const Campaigns = () => {
       )}
 
       <div className="w-full space-y-4">
+        {optimizationLoading ? (
+          <UptoCard className="mb-6">
+            <UptoSpinner />
+          </UptoCard>
+        ) : optimization?.campaigns?.length > 0 ? (
+          <UptoCard className="mb-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold">Campaign Optimization</h2>
+              <p className="text-sm text-muted-foreground">
+                Performance insights and recommendations based on campaign engagement.
+              </p>
+            </div>
+        
+            <div className="space-y-4">
+              {optimization.campaigns.map((campaign) => (
+                <div
+                  key={campaign.campaignId}
+                  className="rounded-lg border p-4"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium">{campaign.campaignName}</h3>
+        
+                    <UptoBadge>
+                      {campaign.sent} sent
+                    </UptoBadge>
+                  </div>
+        
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Open Rate</div>
+                      <div className="text-lg font-semibold">
+                        {campaign.openRate}%
+                      </div>
+                    </div>
+        
+                    <div>
+                      <div className="text-xs text-muted-foreground">Click Rate</div>
+                      <div className="text-lg font-semibold">
+                        {campaign.clickRate}%
+                      </div>
+                    </div>
+        
+                    <div>
+                      <div className="text-xs text-muted-foreground">Reply Rate</div>
+                      <div className="text-lg font-semibold">
+                        {campaign.replyRate}%
+                      </div>
+                    </div>
+        
+                    <div>
+                      <div className="text-xs text-muted-foreground">Replies</div>
+                      <div className="text-lg font-semibold">
+                        {campaign.replied}
+                      </div>
+                    </div>
+                  </div>
+        
+                  {campaign.recommendations?.length > 0 && (
+                    <div>
+                      <div className="text-sm font-medium mb-2">
+                        Recommendations
+                      </div>
+        
+                      <ul className="space-y-1">
+                        {campaign.recommendations.map((recommendation, index) => (
+                          <li
+                            key={index}
+                            className="text-sm text-muted-foreground"
+                          >
+                            • {recommendation}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </UptoCard>
+        ) : null}
+
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/60 shadow-sm">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">

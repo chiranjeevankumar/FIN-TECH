@@ -7,6 +7,7 @@ const { recordActivity } = require("../services/leadActivityService");
 const asyncHandler = require("../utils/asyncHandler");
 const response = require("../utils/response");
 const { AppError } = require("../middleware/errorHandler");
+const SCRAPER_URL = process.env.SCRAPER_URL || "http://localhost:8000";
 
 // 1. POST /api/leads/find
 const findLeads = asyncHandler(async (req, res) => {
@@ -18,7 +19,7 @@ const findLeads = asyncHandler(async (req, res) => {
   // Call FastAPI to start scraping
   let fastapiRes;
   try {
-    fastapiRes = await axios.post("http://localhost:8000/scrape", {
+    fastapiRes = await axios.post(`${SCRAPER_URL}/scrape`, {
       query: searchQuery,
       limit: 20 // Default limit, can be parameterized
     });

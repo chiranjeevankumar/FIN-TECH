@@ -3,6 +3,7 @@ export const leadService = {
   list: (params) => unwrapList(api.get("/leads", { params })),
   stats: () => unwrap(api.get("/leads/stats")),
   get: (id) => unwrap(api.get(`/leads/${id}`)),
+  enrich: (id) => unwrap(api.post(`/leads/${id}/enrich`)),
   create: (data) => unwrap(api.post("/leads", data)),
   update: (id, data) => unwrap(api.patch(`/leads/${id}`, data)),
   remove: (id) => unwrap(api.delete(`/leads/${id}`)),
@@ -450,6 +451,8 @@ export const campaignService = {
   stop: (id) => unwrap(api.post(`/campaigns/${id}/stop`)),
   metrics: () => unwrap(api.get("/campaigns/metrics")),
   getLeads: (id) => unwrap(api.get(`/campaigns/${id}/leads`)),
+  generateEmail: (data) => unwrap(api.post("/ai/generate-campaign-email", data)),
+  optimization: () => unwrap(api.get("/campaigns/optimization")),
 };
 
 export const kbService = {
